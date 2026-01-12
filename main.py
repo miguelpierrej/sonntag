@@ -1,8 +1,8 @@
 import flet as ft
 # Certifique-se que database.py e scraper.py estão na mesma pasta e com as funções corretas
 from database import init_db, salvar_tarefa, listar_tarefas, get_semanas
-from scraper import JwScraper
-import threading
+from sonntag.scrapper.web_scrapper import DataScrapper
+
 
 def main(page: ft.Page):
     page.title = "Gerenciador de Escala"
@@ -12,7 +12,10 @@ def main(page: ft.Page):
     page.window_height = 700
     page.padding = 20
 
-    scraper = JwScraper()
+    
+    scrapper = DataScrapper()
+    # OS DADOS DO SITE ESTÃO NESSA VARIAVEL AQUI, É SO USAR -- VAI VIR EM FORMATO DE LISTA
+    data = scrapper.open_browser_and_scrappe_data()
 
     def update_tasks_table(tasks_list: list):
         """Limpa e repopula a tabela de tarefas."""
