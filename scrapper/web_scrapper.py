@@ -1,6 +1,6 @@
 from playwright.sync_api import sync_playwright
 import locale
-from datetime import datetime, timedelta,date
+from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 from exceptions import  DateTimeConfigError
 
