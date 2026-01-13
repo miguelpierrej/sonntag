@@ -1,26 +1,33 @@
 from playwright.sync_api import sync_playwright
 import locale
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta,date
 from bs4 import BeautifulSoup
-from exceptions import WeekExtremesError, DateTimeConfigError
+from exceptions import  DateTimeConfigError
 
-def get_week_extremes() -> str:
-    try:
-        # TODO: AQUI VOCE VAI PASSAR A DATA DESEJADA DENTRO DESSA VARIAVEL "today", A DATA TEM QUE SER ENVIADA NO FORMATO DATETIME
-        today = datetime.now().date()
-        
-        # .weekday() returns 0 for Monday, 1 for Tuesday, ..., 6 for Sunday
-        day_of_the_week = today.weekday()
-        
-        # Calculate Monday of the current week
-        monday = today - timedelta(days=day_of_the_week)
-        
-        # Calculate Sunday of the current week
-        sunday = monday + timedelta(days=6)
-    except Exception as e:
-        raise WeekExtremesError(e)
+def get_week_extremes(target_date: datetime = None) -> str:
+    # Se não passar data, usa a de hoje
+    if target_date is None:
+        target_date = datetime.now().date()
 
-    return monday.strftime("%d"), sunday.strftime("%d")
+    monday = target_date - timedelta(days=target_date.weekday())
+    sunday = monday + timedelta(days=6)
+
+    meses = {
+        1: "ENERO", 2: "FEBRERO", 3: "MARZO", 4: "ABRIL", 
+        5: "MAYO", 6: "JUNIO", 7: "JULIO", 8: "AGOSTO", 
+        9: "SEPTIEMBRE", 10: "OCTUBRE", 11: "NOVIEMBRE", 12: "DICIEMBRE"
+    }
+
+    # QUANDO A SEMANA COMEÇAR NO MES E TERMINAR NO MESMO MES
+    if monday.month == sunday.month:
+        nome_mes = meses[monday.month]
+        return f"{monday.day}-{sunday.day} DE {nome_mes}"
+    # QUANDO A SEMANA COMEÇAR NO MES E TERMINAR NO OUTRO MES
+    else:
+        mes_segunda = meses[monday.month]
+        mes_domingo = meses[sunday.month]
+        return f"{monday.day} DE {mes_segunda} A {sunday.day} DE {mes_domingo}"
+
 
 
 def scrape_data(page) -> list[str]:
@@ -44,9 +51,9 @@ class DataScrapper:
             self.year = datetime.now().year
             self.month = datetime.now().strftime('%B')
             self.week = datetime.now().isocalendar()[1]
-            self.start_date, self.end_date = get_week_extremes()
+            self.week_of_the_meeting = get_week_extremes()
             self.url = f"https://wol.jw.org/es/wol/meetings/r4/lp-s/{self.year}/{self.week}"
-            self.meeting_selector = f"{self.start_date}-{self.end_date} de {self.month}"
+            self.meeting_selector = f"{self.week_of_the_meeting}"
         except Exception as e:
             raise DateTimeConfigError(e)
 
