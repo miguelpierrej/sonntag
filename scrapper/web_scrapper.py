@@ -168,9 +168,3 @@ class DataScrapper:
         
         
         return data
-
-
-
-main = DataScrapper()
-page = main.open_browser()
-main.extract_all_available_weeks(page)
