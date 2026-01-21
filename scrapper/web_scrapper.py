@@ -2,6 +2,7 @@ from playwright.sync_api import sync_playwright
 import locale
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
+from .data_handling import process_data
 
 
 class DataScrapper:
@@ -15,9 +16,13 @@ class DataScrapper:
     def open_browser(self):
         self.playwright = sync_playwright().start()
         
-        self.browser = self.playwright.chromium.launch(headless=False)
+        self.browser = self.playwright.chromium.launch(
+            headless=False, 
+            args=["--start-maximized"]
+        )
 
-        self.context = self.browser.new_context()
+        self.context = self.browser.new_context(no_viewport=True)
+        
         page = self.context.new_page()
 
         return page
@@ -57,7 +62,8 @@ class DataScrapper:
         return content
 
 
-    def extract_this_month(self, page):
+    def extract_this_month(self):
+        page = self.open_browser()
         data = []
         
         current_month = datetime.now().strftime('%B').lower()
@@ -87,11 +93,14 @@ class DataScrapper:
             page.goto(url)
             data.append(self.scrape_data(page))
         
-        return data
+        page.close()
+        return process_data(data)
 
     
 
-    def extract_this_week(self, page) -> list[str]:
+    def extract_this_week(self) -> list[str]:
+        page = self.open_browser()
+
         link = "https://wol.jw.org/es/wol/h/r4/lp-s"
 
         page.goto(link)
@@ -117,9 +126,12 @@ class DataScrapper:
 
         data = self.scrape_data(page)
 
-        return data
+        page.close()
+        return process_data(data)
     
-    def extract_all_available_weeks(self, page):
+    def extract_all_available_weeks(self):
+        page = self.open_browser()
+
         current_year = datetime.now().year
         link = f"https://wol.jw.org/es/wol/library/r4/lp-s/biblioteca/guía-de-actividades/guía-de-actividades-{current_year}"
         selector = "ul.directory.navCard li.row.card a.cardContainer"
@@ -137,10 +149,12 @@ class DataScrapper:
                 full_url = f"https://wol.jw.org{href}"
                 urls.append(full_url)
         
-        data = self.extract_everything_from_now(page, urls)
-        return data
+        data = self.__extract_everything_from_now(page, urls)
 
-    def extract_everything_from_now(self, page, urls):
+        page.close()
+        return process_data(data)
+
+    def __extract_everything_from_now(self, page, urls):
         valid_links = []
         data = []
         current_week_text = self.get_week_extremes()
@@ -168,3 +182,5 @@ class DataScrapper:
         
         
         return data
+    
+
