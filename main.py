@@ -1,8 +1,7 @@
+import flet as ft
 import json
 import os
 import threading
-import tkinter as tk
-from tkinter import messagebox
 from scrapper.web_scrapper import DataScrapper
 
 # Bibliotecas para PDF
@@ -11,220 +10,391 @@ from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
-class ProgramEditor:
-    def __init__(self, data):
-        self.window = tk.Toplevel()
-        self.window.title(f"Editar Programa: {data['metadata']['data']}")
-        self.window.geometry("850x900")
-        
-        self.data = data
-        self.entries = {}
-        
-        # Garante que as pastas existam
-        os.makedirs("json", exist_ok=True)
-        os.makedirs("pdf", exist_ok=True)
-        
-        # Define o caminho do arquivo dentro da pasta 'json'
-        safe_date = self.data['metadata']['data'].replace(' ', '_').replace('/', '-')
-        self.filename = os.path.join("json", f"assignments_{safe_date}.json")
-
-        self.load_existing_assignments()
-
-        self.main_canvas = tk.Canvas(self.window)
-        self.scrollbar = tk.Scrollbar(self.window, orient="vertical", command=self.main_canvas.yview)
-        self.scrollable_frame = tk.Frame(self.main_canvas)
-
-        self.scrollable_frame.bind(
-            "<Configure>",
-            lambda e: self.main_canvas.configure(scrollregion=self.main_canvas.bbox("all"))
-        )
-
-        self.main_canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
-        self.main_canvas.configure(yscrollcommand=self.scrollbar.set)
-
-        self.setup_ui()
-
-        self.main_canvas.pack(side="left", fill="both", expand=True)
-        self.scrollbar.pack(side="right", fill="y")
-
-    def load_existing_assignments(self):
-        if os.path.exists(self.filename):
-            try:
-                with open(self.filename, 'r', encoding='utf-8') as f:
-                    self.data = json.load(f)
-            except:
-                pass
-
-    def setup_ui(self):
-        tk.Label(self.scrollable_frame, text="PROGRAMA PARA LA REUNIÓN VIDA Y MINISTERIO CRISTIANOS", 
-                 font=("Arial", 14, "bold"), fg="#1a5276").pack(pady=10)
-        
-        header_frame = tk.LabelFrame(self.scrollable_frame, text="Asignaciones Fijas", padx=10, pady=5)
-        header_frame.pack(fill="x", padx=30, pady=5)
-        
-        tk.Label(header_frame, text="Presidente:").grid(row=0, column=0)
-        self.chairman_entry = tk.Entry(header_frame, width=25)
-        self.chairman_entry.insert(0, self.data.get('presidente', ''))
-        self.chairman_entry.grid(row=0, column=1, padx=5)
-
-        tk.Label(header_frame, text="Oración Inicial:").grid(row=0, column=2)
-        self.prayer_entry = tk.Entry(header_frame, width=25)
-        self.prayer_entry.insert(0, self.data.get('oracao_inicial', ''))
-        self.prayer_entry.grid(row=0, column=3, padx=5)
-
-        tk.Label(header_frame, text="Oración Final:").grid(row=1, column=2, pady=5)
-        self.final_prayer_entry = tk.Entry(header_frame, width=25)
-        self.final_prayer_entry.insert(0, self.data.get('oracao_final', ''))
-        self.final_prayer_entry.grid(row=1, column=3, padx=5)
-
-        for s_idx, section in enumerate(self.data['secoes']):
-            section_frame = tk.LabelFrame(self.scrollable_frame, text=section['titulo'], 
-                                         font=("Arial", 11, "bold"), padx=10, pady=10)
-            section_frame.pack(fill="x", padx=30, pady=10)
-
-            for i_idx, item in enumerate(section['itens']):
-                item_row = tk.Frame(section_frame)
-                item_row.pack(fill="x", pady=4)
-
-                original_text = item.split(" [ASSIGNED:")[0]
-                current_assignment = item.split(" [ASSIGNED: ")[1].replace("]", "") if " [ASSIGNED: " in item else ""
-
-                tk.Label(item_row, text=original_text, wraplength=400, justify="left", width=50, anchor="w").pack(side="left")
-                
-                entry_key = f"{s_idx}_{i_idx}"
-                name_entry = tk.Entry(item_row, width=25)
-                
-                if "Canción" in original_text:
-                    name_entry.config(state='disabled', bg="#f0f0f0")
-                else:
-                    name_entry.insert(0, current_assignment)
-                
-                name_entry.pack(side="right", padx=5)
-                self.entries[entry_key] = (name_entry, original_text)
-
-        button_container = tk.Frame(self.scrollable_frame)
-        button_container.pack(pady=30)
-
-        tk.Button(button_container, text="GUARDAR CAMBIOS", bg="#27ae60", fg="white", 
-                  font=("Arial", 10, "bold"), command=self.save_and_update, width=25).grid(row=0, column=0, padx=10)
-
-        tk.Button(button_container, text="GENERAR PDF (S-140)", bg="#2980b9", fg="white", 
-                  font=("Arial", 10, "bold"), command=self.export_to_pdf, width=25).grid(row=0, column=1, padx=10)
-
-    def save_and_update(self):
-        self.data['presidente'] = self.chairman_entry.get().strip()
-        self.data['oracao_inicial'] = self.prayer_entry.get().strip()
-        self.data['oracao_final'] = self.final_prayer_entry.get().strip()
-
-        for key, (entry, original_text) in self.entries.items():
-            s_idx, i_idx = map(int, key.split('_'))
-            if entry.cget('state') != 'disabled':
-                new_name = entry.get().strip()
-                self.data['secoes'][s_idx]['itens'][i_idx] = f"{original_text} [ASSIGNED: {new_name}]" if new_name else original_text
-            else:
-                self.data['secoes'][s_idx]['itens'][i_idx] = original_text
-
-        with open(self.filename, 'w', encoding='utf-8') as f:
-            json.dump(self.data, f, indent=4, ensure_ascii=False)
-        messagebox.showinfo("Éxito", "¡Datos guardados correctamente en la carpeta JSON!")
-        self.window.destroy()
-
-    def export_to_pdf(self):
-        current_chairman = self.chairman_entry.get().strip()
-        current_prayer_init = self.prayer_entry.get().strip()
-        current_prayer_final = self.final_prayer_entry.get().strip()
-
-        # Define o caminho do PDF dentro da pasta 'pdf'
-        pdf_name = f"S-140_{self.data['metadata']['data'].replace(' ', '_')}.pdf"
-        pdf_path = os.path.join("pdf", pdf_name)
-        
-        doc = SimpleDocTemplate(pdf_path, pagesize=A4, leftMargin=30, rightMargin=30, topMargin=30, bottomMargin=30)
-        elements = []
-        styles = getSampleStyleSheet()
-        
-        color_treasures = colors.HexColor("#606060")     
-        color_ministry = colors.HexColor("#C18600")      
-        color_christian_life = colors.HexColor("#942932") 
-
-        section_style = ParagraphStyle('Section', fontSize=10, textColor=colors.white, fontName='Helvetica-Bold', alignment=1)
-        item_style = ParagraphStyle('Item', fontSize=9)
-
-        elements.append(Paragraph("<b>PROGRAMA PARA LA REUNIÓN VIDA Y MINISTERIO CRISTIANOS</b>", ParagraphStyle('H', fontSize=11, alignment=1)))
-        elements.append(Spacer(1, 10))
-        header_data = [[Paragraph(f"<b>{self.data['metadata']['data']} | {self.data['metadata']['texto_biblico']}</b>", styles['Normal']), 
-                        f"Presidente: {current_chairman}"]]
-        elements.append(Table(header_data, colWidths=[380, 160]))
-
-        intro_raw = self.data['metadata']['introducao'].split("|")
-        table_data = []
-        table_data.append([Paragraph(f"<b>{intro_raw[0].strip()}</b>", item_style), f"Oración: {current_prayer_init}"])
-        table_data.append([Paragraph(intro_raw[1].strip() if len(intro_raw)>1 else "", item_style), ""])
-
-        for s_idx, section in enumerate(self.data['secoes']):
-            title = section['titulo'].upper()
-            bg_color = color_treasures
-            if "MAESTROS" in title or "MINISTÉRIO" in title or "MEJORES" in title: bg_color = color_ministry
-            elif "VIDA" in title: bg_color = color_christian_life
-            table_data.append([Paragraph(title, section_style), ""]) 
-            for i_idx, item in enumerate(section['itens']):
-                entry_key = f"{s_idx}_{i_idx}"
-                assigned_name = self.entries[entry_key][0].get() if self.entries[entry_key][0].cget('state') != 'disabled' else ""
-                original_text = self.entries[entry_key][1]
-                table_data.append([Paragraph(original_text, item_style), assigned_name])
-
-        concl_raw = self.data['conclusao'].split("|")
-        table_data.append([Paragraph("CONCLUSIÓN", section_style), ""])
-        table_data.append([Paragraph(concl_raw[0].strip(), item_style), ""])
-        table_data.append([Paragraph(f"<b>{concl_raw[1].strip() if len(concl_raw)>1 else ''}</b>", item_style), f"Oración: {current_prayer_final}"])
-
-        t = Table(table_data, colWidths=[400, 140])
-        style = TableStyle([
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-        ])
-
-        curr_row = 2 
-        for section in self.data['secoes']:
-            title = section['titulo'].upper()
-            color = color_treasures
-            if "MAESTROS" in title or "MINISTÉRIO" in title or "MEJORES" in title: color = color_ministry
-            elif "VIDA" in title: color = color_christian_life
-            style.add('BACKGROUND', (0, curr_row), (-1, curr_row), color)
-            style.add('SPAN', (0, curr_row), (1, curr_row)) 
-            curr_row += len(section['itens']) + 1
-        style.add('BACKGROUND', (0, curr_row), (-1, curr_row), colors.black)
-        style.add('SPAN', (0, curr_row), (1, curr_row))
-
-        t.setStyle(style)
-        elements.append(t)
-        
-        doc.build(elements)
-        messagebox.showinfo("Éxito", f"PDF generado en la carpeta PDF: {pdf_name}")
-
 class ProgramApp:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("Schedule Manager")
-        self.root.geometry("480x520")
+    def __init__(self, page: ft.Page):
+        self.page = page
+        self.page.title = "Schedule Manager"
+        self.page.window_width = 900
+        self.page.window_height = 700
+        self.page.padding = 0
+        self.page.theme_mode = ft.ThemeMode.DARK
+        self.page.bgcolor = "#0a0e1a"
         self.scrapper = DataScrapper()
         self.json_history = os.path.join("json", "saved_schedules.json")
         
         os.makedirs("json", exist_ok=True)
         os.makedirs("pdf", exist_ok=True)
         
-        btn_config = {"font": ("Arial", 10), "width": 30, "pady": 5, "cursor": "hand2"}
-        tk.Label(root, text="MAIN MENU", font=("Arial", 14, "bold"), pady=20).pack()
+        self.show_main_menu()
 
-        extract_frame = tk.LabelFrame(root, text="Extraction", padx=10, pady=10)
-        extract_frame.pack(fill="x", padx=20, pady=5)
-        tk.Button(extract_frame, text="Extract This Week", command=self.extract_week, **btn_config).pack(pady=2)
-        tk.Button(extract_frame, text="Extract Month", command=self.extract_month, **btn_config).pack(pady=2)
-        tk.Button(extract_frame, text="Extract All Available", command=self.extract_all, bg="#fff3cd", **btn_config).pack(pady=2)
+    def show_main_menu(self):
+        self.page.controls.clear()
+        
+        # Hero Section - Cabeçalho de boas-vindas
+        hero_section = ft.Container(
+            content=ft.Column([
+                ft.Icon(
+                    ft.Icons.CALENDAR_MONTH,
+                    size=60,
+                    color="#6366f1"
+                ),
+                ft.Text(
+                    "Bem-vindo ao Schedule Manager",
+                    size=32,
+                    weight=ft.FontWeight.BOLD,
+                    color="#ffffff",
+                    text_align=ft.TextAlign.CENTER
+                ),
+                ft.Text(
+                    "Organize designações de forma simples, clara e sem conflitos.",
+                    size=16,
+                    color="#94a3b8",
+                    text_align=ft.TextAlign.CENTER
+                ),
+            ],
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=12
+            ),
+            padding=ft.Padding(top=40, bottom=40),
+            alignment=ft.Alignment.CENTER
+        )
+        
+        # Função para criar cards clicáveis
+        def create_card(title, description, icon, on_click, is_primary=False):
+            card_bg = "#1e293b" if not is_primary else "#312e81"
+            hover_bg = "#334155" if not is_primary else "#4338ca"
+            
+            card = ft.Container(
+                content=ft.Column([
+                    ft.Icon(
+                        icon,
+                        size=40,
+                        color="#6366f1" if not is_primary else "#818cf8"
+                    ),
+                    ft.Text(
+                        title,
+                        size=16,
+                        weight=ft.FontWeight.BOLD,
+                        color="#f1f5f9",
+                        text_align=ft.TextAlign.CENTER
+                    ),
+                    ft.Text(
+                        description,
+                        size=12,
+                        color="#94a3b8",
+                        text_align=ft.TextAlign.CENTER
+                    ),
+                ],
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=8
+                ),
+                bgcolor=card_bg,
+                border_radius=16,
+                padding=24,
+                width=250,
+                height=180,
+                ink=True,
+                on_click=on_click,
+                animate=ft.Animation(200, "easeOut"),
+                shadow=ft.BoxShadow(
+                    spread_radius=1,
+                    blur_radius=15,
+                    color="#00000050",
+                    offset=ft.Offset(0, 4),
+                )
+            )
+            
+            # Adicionar efeito hover
+            def on_hover(e):
+                card.bgcolor = hover_bg if e.data == "true" else card_bg
+                card.elevation = 8 if e.data == "true" else 0
+                card.update()
+            
+            card.on_hover = on_hover
+            return card
+        
+        # Grid de cards principais
+        cards_grid = ft.Column([
+            ft.Row([
+                create_card(
+                    "Designações de Vida e Ministério",
+                    "Planejamento e organização das reuniões",
+                    ft.Icons.BOOK,
+                    self.show_vida_ministerio,
+                    is_primary=True
+                ),
+                create_card(
+                    "Áudio, Vídeo e Indicadores",
+                    "Controle de equipamentos e responsáveis",
+                    ft.Icons.VIDEOCAM,
+                    self.show_audio_video
+                ),
+                create_card(
+                    "Designações de Limpeza",
+                    "Escalas organizadas por período",
+                    ft.Icons.CLEANING_SERVICES,
+                    self.show_limpeza
+                ),
+            ],
+            alignment=ft.MainAxisAlignment.CENTER,
+            spacing=20
+            ),
+            ft.Row([
+                create_card(
+                    "Saída de Campo",
+                    "Organização de grupos e responsáveis",
+                    ft.Icons.DIRECTIONS_WALK,
+                    self.show_saida_campo
+                ),
+                create_card(
+                    "Saída de Carrinho",
+                    "Controle específico de designações externas",
+                    ft.Icons.LOCAL_SHIPPING,
+                    self.show_saida_carrinho
+                ),
+            ],
+            alignment=ft.MainAxisAlignment.CENTER,
+            spacing=20
+            ),
+        ],
+        spacing=20,
+        horizontal_alignment=ft.CrossAxisAlignment.CENTER
+        )
+        
+        # Container principal com scroll
+        main_container = ft.Column([
+            hero_section,
+            cards_grid,
+        ],
+        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+        spacing=20,
+        scroll=ft.ScrollMode.AUTO
+        )
+        
+        self.page.add(main_container)
+        self.page.update()
 
-        view_frame = tk.LabelFrame(root, text="Saved Data", padx=10, pady=10)
-        view_frame.pack(fill="x", padx=20, pady=10)
-        tk.Button(view_frame, text="View Saved Schedules", command=self.view_saved, bg="#d1e7ff", **btn_config).pack(pady=2)
+    def show_vida_ministerio(self, e):
+        self.page.controls.clear()
+        
+        # Botão de voltar estilizado
+        back_button = ft.Container(
+            content=ft.Row([
+                ft.Icon(ft.Icons.ARROW_BACK, size=20, color="#6366f1"),
+                ft.Text("Voltar ao Menu", size=14, color="#6366f1", weight=ft.FontWeight.BOLD)
+            ], spacing=8),
+            bgcolor="#1e293b",
+            border_radius=8,
+            padding=ft.Padding(left=16, right=16, top=10, bottom=10),
+            ink=True,
+            on_click=lambda _: self.show_main_menu()
+        )
+        
+        # Cabeçalho da seção
+        header = ft.Container(
+            content=ft.Column([
+                ft.Icon(ft.Icons.BOOK, size=50, color="#6366f1"),
+                ft.Text(
+                    "Designações de Vida e Ministério",
+                    size=24,
+                    weight=ft.FontWeight.BOLD,
+                    color="#ffffff"
+                ),
+                ft.Text(
+                    "Extraia e visualize designações das reuniões",
+                    size=14,
+                    color="#94a3b8"
+                ),
+            ],
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=8
+            ),
+            padding=ft.Padding(top=20, bottom=30),
+            alignment=ft.Alignment.CENTER
+        )
+        
+        # Botões de ação estilizados
+        def create_action_button(text, icon, on_click):
+            btn_content = ft.Row([
+                ft.Icon(icon, size=24, color="#6366f1"),
+                ft.Text(text, size=15, color="#f1f5f9", weight=ft.FontWeight.W_500)
+            ], spacing=12)
+            
+            btn = ft.Container(
+                content=btn_content,
+                bgcolor="#1e293b",
+                border_radius=12,
+                padding=16,
+                width=400,
+                ink=True,
+                on_click=on_click,
+                shadow=ft.BoxShadow(
+                    spread_radius=0,
+                    blur_radius=10,
+                    color="#00000033",
+                    offset=ft.Offset(0, 2),
+                )
+            )
+            
+            def on_hover(e):
+                btn.bgcolor = "#334155" if e.data == "true" else "#1e293b"
+                btn.update()
+            
+            btn.on_hover = on_hover
+            return btn
+        
+        buttons_column = ft.Column([
+            create_action_button("Extract This Week", ft.Icons.CALENDAR_TODAY, self.extract_week),
+            create_action_button("Extract Month", ft.Icons.CALENDAR_MONTH, self.extract_month),
+            create_action_button("Extract All Available", ft.Icons.DOWNLOAD, self.extract_all),
+            create_action_button("View Saved Schedules", ft.Icons.FOLDER_OPEN, self.view_saved),
+        ], spacing=15, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+        
+        main_content = ft.Column([
+            ft.Container(back_button, padding=ft.Padding(left=20, top=20)),
+            header,
+            buttons_column,
+        ],
+        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+        spacing=10,
+        scroll=ft.ScrollMode.AUTO
+        )
+        
+        self.page.add(main_content)
+        self.page.update()
+
+    def show_audio_video(self, e):
+        self.page.controls.clear()
+        
+        back_button = ft.Container(
+            content=ft.Row([
+                ft.Icon(ft.Icons.ARROW_BACK, size=20, color="#6366f1"),
+                ft.Text("Voltar ao Menu", size=14, color="#6366f1", weight=ft.FontWeight.BOLD)
+            ], spacing=8),
+            bgcolor="#1e293b",
+            border_radius=8,
+            padding=ft.Padding(left=16, right=16, top=10, bottom=10),
+            ink=True,
+            on_click=lambda _: self.show_main_menu()
+        )
+        
+        content = ft.Column([
+            ft.Container(back_button, padding=ft.Padding(left=20, top=20)),
+            ft.Container(
+                content=ft.Column([
+                    ft.Icon(ft.Icons.VIDEOCAM, size=50, color="#6366f1"),
+                    ft.Text("Designações de Áudio, Vídeo e Indicadores", size=24, weight=ft.FontWeight.BOLD, color="#ffffff", text_align=ft.TextAlign.CENTER),
+                    ft.Text("Controle de equipamentos e responsáveis", size=14, color="#94a3b8"),
+                    ft.Container(height=20),
+                    ft.Text("Em desenvolvimento...", size=16, color="#818cf8", italic=True)
+                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=8),
+                padding=ft.Padding(top=40),
+                alignment=ft.Alignment.CENTER
+            )
+        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+        
+        self.page.add(content)
+        self.page.update()
+
+    def show_limpeza(self, e):
+        self.page.controls.clear()
+        
+        back_button = ft.Container(
+            content=ft.Row([
+                ft.Icon(ft.Icons.ARROW_BACK, size=20, color="#6366f1"),
+                ft.Text("Voltar ao Menu", size=14, color="#6366f1", weight=ft.FontWeight.BOLD)
+            ], spacing=8),
+            bgcolor="#1e293b",
+            border_radius=8,
+            padding=ft.Padding(left=16, right=16, top=10, bottom=10),
+            ink=True,
+            on_click=lambda _: self.show_main_menu()
+        )
+        
+        content = ft.Column([
+            ft.Container(back_button, padding=ft.Padding(left=20, top=20)),
+            ft.Container(
+                content=ft.Column([
+                    ft.Icon(ft.Icons.CLEANING_SERVICES, size=50, color="#6366f1"),
+                    ft.Text("Designações de Limpeza", size=24, weight=ft.FontWeight.BOLD, color="#ffffff"),
+                    ft.Text("Escalas organizadas por período", size=14, color="#94a3b8"),
+                    ft.Container(height=20),
+                    ft.Text("Em desenvolvimento...", size=16, color="#818cf8", italic=True)
+                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=8),
+                padding=ft.Padding(top=40),
+                alignment=ft.Alignment.CENTER
+            )
+        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+        
+        self.page.add(content)
+        self.page.update()
+
+    def show_saida_campo(self, e):
+        self.page.controls.clear()
+        
+        back_button = ft.Container(
+            content=ft.Row([
+                ft.Icon(ft.Icons.ARROW_BACK, size=20, color="#6366f1"),
+                ft.Text("Voltar ao Menu", size=14, color="#6366f1", weight=ft.FontWeight.BOLD)
+            ], spacing=8),
+            bgcolor="#1e293b",
+            border_radius=8,
+            padding=ft.Padding(left=16, right=16, top=10, bottom=10),
+            ink=True,
+            on_click=lambda _: self.show_main_menu()
+        )
+        
+        content = ft.Column([
+            ft.Container(back_button, padding=ft.Padding(left=20, top=20)),
+            ft.Container(
+                content=ft.Column([
+                    ft.Icon(ft.Icons.DIRECTIONS_WALK, size=50, color="#6366f1"),
+                    ft.Text("Saída de Campo", size=24, weight=ft.FontWeight.BOLD, color="#ffffff"),
+                    ft.Text("Organização de grupos e responsáveis", size=14, color="#94a3b8"),
+                    ft.Container(height=20),
+                    ft.Text("Em desenvolvimento...", size=16, color="#818cf8", italic=True)
+                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=8),
+                padding=ft.Padding(top=40),
+                alignment=ft.Alignment.CENTER
+            )
+        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+        
+        self.page.add(content)
+        self.page.update()
+
+    def show_saida_carrinho(self, e):
+        self.page.controls.clear()
+        
+        back_button = ft.Container(
+            content=ft.Row([
+                ft.Icon(ft.Icons.ARROW_BACK, size=20, color="#6366f1"),
+                ft.Text("Voltar ao Menu", size=14, color="#6366f1", weight=ft.FontWeight.BOLD)
+            ], spacing=8),
+            bgcolor="#1e293b",
+            border_radius=8,
+            padding=ft.Padding(left=16, right=16, top=10, bottom=10),
+            ink=True,
+            on_click=lambda _: self.show_main_menu()
+        )
+        
+        content = ft.Column([
+            ft.Container(back_button, padding=ft.Padding(left=20, top=20)),
+            ft.Container(
+                content=ft.Column([
+                    ft.Icon(ft.Icons.LOCAL_SHIPPING, size=50, color="#6366f1"),
+                    ft.Text("Saída de Carrinho", size=24, weight=ft.FontWeight.BOLD, color="#ffffff"),
+                    ft.Text("Controle específico de designações externas", size=14, color="#94a3b8"),
+                    ft.Container(height=20),
+                    ft.Text("Em desenvolvimento...", size=16, color="#818cf8", italic=True)
+                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=8),
+                padding=ft.Padding(top=40),
+                alignment=ft.Alignment.CENTER
+            )
+        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+        
+        self.page.add(content)
+        self.page.update()
+
 
     def save_to_history(self, new_data):
         if not isinstance(new_data, list): new_data = [new_data]
@@ -241,34 +411,286 @@ class ProgramApp:
         with open(self.json_history, 'w', encoding='utf-8') as f:
             json.dump(total, f, indent=4, ensure_ascii=False)
 
-    def extract_week(self):
+    def extract_week(self, e):
         threading.Thread(target=self._run_task, args=(self.scrapper.extract_this_week,), daemon=True).start()
 
-    def extract_month(self):
+    def extract_month(self, e):
         threading.Thread(target=self._run_task, args=(self.scrapper.extract_this_month,), daemon=True).start()
 
-    def extract_all(self):
+    def extract_all(self, e):
         threading.Thread(target=self._run_task, args=(self.scrapper.extract_all_available_weeks,), daemon=True).start()
 
     def _run_task(self, task_func):
-        data = task_func()
-        if data:
-            self.save_to_history(data)
-            self.root.after(0, lambda: messagebox.showinfo("Éxito", "¡Datos extraídos y guardados en JSON!"))
+        try:
+            data = task_func()
+            if data:
+                self.save_to_history(data)
+                # Mostrar notificação de sucesso
+                self.page.snack_bar = ft.SnackBar(
+                    ft.Text("✓ Dados extraídos e salvos com sucesso!", color="#22c55e"),
+                    bgcolor="#0f172a"
+                )
+                self.page.snack_bar.open = True
+                self.page.update()
+            else:
+                # Mostrar notificação de nenhum dado
+                self.page.snack_bar = ft.SnackBar(
+                    ft.Text("⚠ Nenhum dado foi encontrado", color="#f59e0b"),
+                    bgcolor="#0f172a"
+                )
+                self.page.snack_bar.open = True
+                self.page.update()
+        except Exception as e:
+            # Mostrar erro
+            print(f"Erro ao extrair dados: {str(e)}")
+            self.page.snack_bar = ft.SnackBar(
+                ft.Text(f"✗ Erro: {str(e)}", color="#ef4444"),
+                bgcolor="#0f172a"
+            )
+            self.page.snack_bar.open = True
+            self.page.update()
 
-    def view_saved(self):
+    def view_saved(self, e):
         if os.path.exists(self.json_history):
             with open(self.json_history, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             self.show_selector(data)
 
-    def show_selector(self, data):
-        win = tk.Toplevel(self.root)
-        win.title("Seleccionar Fecha")
-        for item in data:
-            tk.Button(win, text=item['metadata']['data'], width=40, command=lambda d=item: ProgramEditor(d)).pack(pady=2)
+    def show_selector(self, data_list):
+        self.page.controls.clear()
+        
+        # Dicionário para guardar as referências dos inputs (TextFields)
+        self.input_controls = {} 
+
+        # Ordenar dados por data
+        try:
+            data_list.sort(key=lambda x: x['metadata'].get('data', ''), reverse=True)
+        except:
+            pass 
+
+        # --- Elementos de UI ---
+        self.detail_container = ft.Column(scroll=ft.ScrollMode.AUTO, expand=True, spacing=10)
+        
+        # Placeholder inicial
+        self.detail_container.controls = [
+            ft.Container(
+                content=ft.Column([
+                    ft.Icon(ft.Icons.TOUCH_APP, size=50, color="#6366f1"),
+                    ft.Text("Selecione uma semana ao lado para editar.", color="#94a3b8")
+                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                alignment=ft.Alignment(0, 0),
+                expand=True,
+                padding=50
+            )
+        ]
+
+        # Função para carregar os detalhes e criar os INPUTS
+        def load_details(e, item_data):
+            self.detail_container.controls.clear()
+            self.input_controls = {} # Limpa inputs anteriores
+            
+            meta = item_data.get('metadata', {})
+            secoes = item_data.get('secoes', [])
+            
+            # Guardamos os dados brutos atuais para usar no PDF
+            self.current_data_context = item_data 
+
+            # 1. Cabeçalho
+            header = ft.Container(
+                content=ft.Row([
+                    ft.Column([
+                        ft.Text(f"Semana de {meta.get('data', 'Data N/D')}", size=22, weight=ft.FontWeight.BOLD, color="white"),
+                        ft.Text(f"Leitura: {meta.get('texto_biblico', '')}", size=14, color="#94a3b8"),
+                    ], spacing=2),
+                    ft.ElevatedButton(
+                        "Gerar PDF",
+                        icon=ft.Icons.PICTURE_AS_PDF,
+                        bgcolor="#ef4444",
+                        color="white",
+                        on_click=self.generate_pdf_action
+                    )
+                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                bgcolor="#1e293b", padding=20, border_radius=10
+            )
+            self.detail_container.controls.append(header)
+
+            # 2. Renderizar Seções com INPUTS
+            for secao in secoes:
+                titulo = secao.get('titulo', '').upper()
+                itens = secao.get('itens', [])
+                
+                # Inicializa lista de controles para esta seção
+                self.input_controls[titulo] = []
+
+                # Lógica de cores/ícones
+                icon = ft.Icons.CIRCLE
+                color_theme = "#94a3b8"
+                if "TESOROS" in titulo or "TESOUROS" in titulo:
+                    icon, color_theme = ft.Icons.DIAMOND, "#a5b4fc"
+                elif "MAESTROS" in titulo or "MINISTÉRIO" in titulo:
+                    icon, color_theme = ft.Icons.WORK, "#fbbf24"
+                elif "VIDA" in titulo or "CRISTIANA" in titulo:
+                    icon, color_theme = ft.Icons.FAVORITE, "#f87171"
+
+                rows_content = []
+                for idx, item_texto in enumerate(itens):
+                    # Criar TextFields para editar
+                    txt_nome = ft.TextField(label="Designado", height=40, text_size=12, expand=True, bgcolor="#0f172a", border_color="#334155")
+                    txt_ajudante = ft.TextField(label="Ajudante/Sala", height=40, text_size=12, width=150, bgcolor="#0f172a", border_color="#334155")
+                    
+                    # Guarda a referência para pegarmos o valor depois
+                    self.input_controls[titulo].append({'nome': txt_nome, 'ajudante': txt_ajudante})
+
+                    # Layout do Item
+                    rows_content.append(
+                        ft.Container(
+                            content=ft.Column([
+                                ft.Text(item_texto, color="#e2e8f0", size=14, weight=ft.FontWeight.BOLD),
+                                ft.Row([txt_nome, txt_ajudante])
+                            ], spacing=5),
+                            padding=15,
+                            bgcolor="#1e293b", 
+                            border=ft.Border(left=ft.BorderSide(4, color_theme)),
+                            border_radius=4
+                        )
+                    )
+
+                self.detail_container.controls.append(
+                    ft.Container(
+                        content=ft.Column([
+                            ft.Row([ft.Icon(icon, color=color_theme), ft.Text(titulo, size=16, weight=ft.FontWeight.BOLD, color=color_theme)]),
+                            ft.Column(rows_content, spacing=10)
+                        ], spacing=10),
+                        # CORREÇÃO AQUI: Substituído ft.margin.only por ft.Margin
+                        padding=10, 
+                        margin=ft.Margin(0, 0, 0, 10) 
+                    )
+                )
+
+            self.detail_container.update()
+
+        # --- Lista Lateral ---
+        date_list_view = ft.ListView(expand=True, spacing=5, padding=10)
+        for item in data_list:
+            data_str = item.get('metadata', {}).get('data', 'Sem data')
+            btn = ft.Container(
+                content=ft.Row([ft.Icon(ft.Icons.CALENDAR_TODAY, size=16, color="#94a3b8"), ft.Text(data_str, color="white", size=13)]),
+                padding=15, border_radius=8, bgcolor="#1e293b", ink=True,
+                on_click=lambda e, i=item: load_details(e, i)
+            )
+            date_list_view.controls.append(btn)
+
+        # Layout Principal
+        layout = ft.Column([
+            ft.Container(content=ft.Row([ft.IconButton(ft.Icons.ARROW_BACK, on_click=lambda _: self.show_vida_ministerio(None)), ft.Text("Voltar", size=16, weight=ft.FontWeight.BOLD)]), padding=10),
+            ft.Container(expand=True, content=ft.Row([
+                ft.Container(content=date_list_view, width=250, bgcolor="#0f172a", border=ft.Border(right=ft.BorderSide(1, "#334155"))),
+                ft.Container(content=self.detail_container, expand=True, padding=20)
+            ], expand=True))
+        ], expand=True)
+
+        self.page.add(layout)
+        self.page.update()
+
+    def generate_pdf_action(self, e):
+        """Coleta os dados dos inputs e chama o gerador de PDF"""
+        if not hasattr(self, 'current_data_context') or not self.current_data_context:
+            return
+
+        pdf_data = self.current_data_context.copy()
+        
+        # Preenche os dados com o que o usuário digitou nos TextFields
+        for secao in pdf_data['secoes']:
+            titulo = secao.get('titulo', '').upper()
+            if titulo in self.input_controls:
+                for idx, item in enumerate(secao['itens']):
+                    controls = self.input_controls[titulo][idx]
+                    
+                    secao['itens'][idx] = {
+                        'parte': item,
+                        'nome': controls['nome'].value,
+                        'ajudante': controls['ajudante'].value
+                    }
+
+        filename = f"Designacao_{pdf_data['metadata']['data'].replace(' ', '_')}.pdf"
+        filepath = os.path.join("pdf", filename)
+        self.create_pdf_file(filepath, pdf_data)
+        
+        self.page.snack_bar = ft.SnackBar(ft.Text(f"PDF salvo em: {filepath}", color="white"), bgcolor="#22c55e")
+        self.page.snack_bar.open = True
+        self.page.update()
+
+    def create_pdf_file(self, filename, data):
+        """Usa ReportLab para desenhar o PDF"""
+        doc = SimpleDocTemplate(filename, pagesize=A4)
+        elements = []
+        styles = getSampleStyleSheet()
+        
+        # CORREÇÃO: Substituído colors.hexval por colors.HexColor
+        title_style = ParagraphStyle('TitleCustom', parent=styles['Title'], fontSize=18, textColor=colors.HexColor("#2c3e50"), spaceAfter=10)
+        subtitle_style = ParagraphStyle('SubtitleCustom', parent=styles['Normal'], fontSize=12, textColor=colors.gray, spaceAfter=20)
+        # Header style não estava sendo usado explicitamente, mas corrigido igual
+        
+        # Cabeçalho do PDF
+        meta = data['metadata']
+        elements.append(Paragraph(f"Designações: Semana de {meta.get('data', '')}", title_style))
+        elements.append(Paragraph(f"Leitura: {meta.get('texto_biblico', '')} | {meta.get('introducao', '')}", subtitle_style))
+        elements.append(Spacer(1, 10))
+
+        # Loop pelas seções
+        for secao in data['secoes']:
+            titulo = secao.get('titulo', '')
+            
+            # CORREÇÃO: Cores com HexColor
+            bg_color = colors.HexColor("#7f8c8d")
+            if "TESOROS" in titulo.upper(): bg_color = colors.HexColor("#6c5ce7")
+            elif "MAESTROS" in titulo.upper(): bg_color = colors.HexColor("#f1c40f")
+            elif "VIDA" in titulo.upper(): bg_color = colors.HexColor("#e74c3c")
+
+            section_title = ParagraphStyle('SecTitle', parent=styles['Heading2'], fontSize=12, textColor=colors.white, backColor=bg_color, borderPadding=5, spaceAfter=5)
+            elements.append(Paragraph(titulo, section_title))
+
+            # Tabela de Designações
+            table_data = []
+            table_data.append(["Parte", "Designado / Ajudante"])
+
+            for item in secao['itens']:
+                parte_txt = item.get('parte', '')
+                nome = item.get('nome', '')
+                ajudante = item.get('ajudante', '')
+                
+                full_name = nome
+                if ajudante:
+                    full_name += f" / {ajudante}"
+                
+                if not full_name.strip():
+                    full_name = "__________________________"
+
+                p_parte = Paragraph(parte_txt, styles['Normal'])
+                p_nome = Paragraph(f"<b>{full_name}</b>", styles['Normal'])
+                
+                table_data.append([p_parte, p_nome])
+
+            t = Table(table_data, colWidths=[300, 180])
+            t.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ]))
+            elements.append(t)
+            elements.append(Spacer(1, 15))
+
+        if 'conclusao' in data:
+            elements.append(Paragraph(f"<b>Conclusão:</b> {data['conclusao']}", subtitle_style))
+
+        doc.build(elements)
+
+def main(page: ft.Page):
+    app = ProgramApp(page)
 
 if __name__ == "__main__":
-    app_root = tk.Tk()
-    app = ProgramApp(app_root)
-    app_root.mainloop()
+    ft.run(main)
