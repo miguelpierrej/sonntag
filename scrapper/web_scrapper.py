@@ -63,96 +63,135 @@ class DataScrapper:
 
 
     def extract_this_month(self):
-        page = self.open_browser()
-        data = []
-        
-        current_month = datetime.now().strftime('%B').lower()
-        current_year = datetime.now().year
-        current_week_text = self.get_week_extremes() 
-
-        link = f"https://wol.jw.org/es/wol/library/r4/lp-s/biblioteca/guía-de-actividades/guía-de-actividades-{current_year}/{current_month}"
-        page.goto(link)
-
-        items = page.locator("#materialNav nav ul li a.cardContainer").all()
-
-        valid_links = []
-        found_current_week = False
-
-        for item in items:
-            item_text = item.inner_text().lower()
-
-            if current_week_text.lower() in item_text:
-                found_current_week = True
+        try:
+            page = self.open_browser()
+            data = []
             
-            if found_current_week:
-                href = item.get_attribute("href")
-                full_url = f"https://wol.jw.org{href}" if href.startswith('/') else href
-                valid_links.append(full_url)
+            current_month = datetime.now().strftime('%B').lower()
+            current_year = datetime.now().year
+            current_week_text = self.get_week_extremes() 
 
-        for url in valid_links:
-            page.goto(url)
-            data.append(self.scrape_data(page))
-        
-        page.close()
-        return process_data(data)
+            link = f"https://wol.jw.org/es/wol/library/r4/lp-s/biblioteca/guía-de-actividades/guía-de-actividades-{current_year}/{current_month}"
+            page.goto(link)
+
+            items = page.locator("#materialNav nav ul li a.cardContainer").all()
+
+            valid_links = []
+            found_current_week = False
+
+            for item in items:
+                item_text = item.inner_text().lower()
+
+                if current_week_text.lower() in item_text:
+                    found_current_week = True
+                
+                if found_current_week:
+                    href = item.get_attribute("href")
+                    full_url = f"https://wol.jw.org{href}" if href.startswith('/') else href
+                    valid_links.append(full_url)
+
+            for url in valid_links:
+                page.goto(url)
+                data.append(self.scrape_data(page))
+            
+            page.close()
+            self.browser.close()
+            self.playwright.stop()
+            
+            return process_data(data)
+        except Exception as e:
+            print(f"Erro em extract_this_month: {str(e)}")
+            try:
+                page.close()
+                self.browser.close()
+                self.playwright.stop()
+            except:
+                pass
+            return []
 
     
 
     def extract_this_week(self) -> list[str]:
-        page = self.open_browser()
+        try:
+            page = self.open_browser()
 
-        link = "https://wol.jw.org/es/wol/h/r4/lp-s"
+            link = "https://wol.jw.org/es/wol/h/r4/lp-s"
 
-        page.goto(link)
+            page.goto(link)
 
-        page.click("#menuToday")
-    
-        page.wait_for_load_state("networkidle")
-
-        current_week = self.get_week_extremes() 
+            page.click("#menuToday")
         
-        links = page.locator("ul.directory.navCard li.todayItem a.cardContainer")
-    
+            page.wait_for_load_state("networkidle")
 
-        count = links.count()
-        
-        for i in range(count):
-            link = links.nth(i)
-            text = link.inner_text()
+            current_week = self.get_week_extremes() 
             
-            if current_week.lower() in text.lower():
-                link.click()
-                break
+            links = page.locator("ul.directory.navCard li.todayItem a.cardContainer")
+        
 
-        data = self.scrape_data(page)
+            count = links.count()
+            
+            for i in range(count):
+                link = links.nth(i)
+                text = link.inner_text()
+                
+                if current_week.lower() in text.lower():
+                    link.click()
+                    break
 
-        page.close()
-        return process_data(data)
+            data = self.scrape_data(page)
+
+            page.close()
+            self.browser.close()
+            self.playwright.stop()
+            
+            return process_data(data)
+        except Exception as e:
+            print(f"Erro em extract_this_week: {str(e)}")
+            try:
+                page.close()
+                self.browser.close()
+                self.playwright.stop()
+            except:
+                pass
+            return []
     
     def extract_all_available_weeks(self):
-        page = self.open_browser()
+        try:
+            page = self.open_browser()
 
-        current_year = datetime.now().year
-        link = f"https://wol.jw.org/es/wol/library/r4/lp-s/biblioteca/guía-de-actividades/guía-de-actividades-{current_year}"
-        selector = "ul.directory.navCard li.row.card a.cardContainer"
-        
-        page.goto(link)
+            current_year = datetime.now().year
+            link = f"https://wol.jw.org/es/wol/library/r4/lp-s/biblioteca/guía-de-actividades/guía-de-actividades-{current_year}"
+            selector = "ul.directory.navCard li.row.card a.cardContainer"
+            
+            page.goto(link)
 
-        page.wait_for_selector(selector)
-        
-        locators = page.locator(selector).all()
-        
-        urls = []
-        for locator in locators:
-            href = locator.get_attribute("href")
-            if href:
-                full_url = f"https://wol.jw.org{href}"
-                urls.append(full_url)
-        
-        data = self.__extract_everything_from_now(page, urls)
+            page.wait_for_selector(selector)
+            
+            locators = page.locator(selector).all()
+            
+            urls = []
+            for locator in locators:
+                href = locator.get_attribute("href")
+                if href:
+                    full_url = f"https://wol.jw.org{href}"
+                    urls.append(full_url)
+            
+            data = self.__extract_everything_from_now(page, urls)
 
-        page.close()
-        return process_data(data)
+            page.close()
+            self.browser.close()
+            self.playwright.stop()
+            
+            return process_data(data)
+        except Exception as e:
+            print(f"Erro em extract_all_available_weeks: {str(e)}")
+            try:
+                page.close()
+                self.browser.close()
+                self.playwright.stop()
+            except:
+                pass
+            return []
 
     def __extract_everything_from_now(self, page, urls):
         valid_links = []

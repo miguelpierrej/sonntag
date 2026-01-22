@@ -454,7 +454,8 @@ class ProgramApp:
         if os.path.exists(self.json_history):
             with open(self.json_history, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-            self.show_selector(data)
+            # self.show_selector(data)
+
 
     def show_selector(self, data_list):
         self.page.controls.clear()
