@@ -2,69 +2,41 @@ from playwright.sync_api import sync_playwright
 import locale
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
-from .data_handling import process_data
+from data_handling import process_data
+import json
+import os
 
 
 class DataScrapper:
     def __init__(self):
         try:
-            locale.setlocale(locale.LC_ALL, 'es_MX.UTF-8')
+            locale.setlocale(locale.LC_ALL, "es_MX.UTF-8")
         except:
-            locale.setlocale(locale.LC_ALL, 'es-MX')
+            locale.setlocale(locale.LC_ALL, "es-MX")
 
+        self.base_dir = os.path.dirname(os.path.abspath(__file__))
+        self.json_dir = os.path.join(self.base_dir, "json_data")
+
+        os.makedirs(self.json_dir, exist_ok=True)
 
     def open_browser(self):
         self.playwright = sync_playwright().start()
-        
-        self.browser = self.playwright.chromium.launch(
-            headless=False, 
-            args=["--start-maximized"]
-        )
+
+        try:
+            self.browser = self.playwright.chromium.launch(
+                headless=False, args=["--start-maximized"]
+            )
+        except:
+            try:
+                self.browser = self.playwright.firefox.launch(
+                    headless=False, args=["--start-maximized"]
+                )
+            except Exception as e:
+                raise e
 
         self.context = self.browser.new_context(no_viewport=True)
-        
-        page = self.context.new_page()
+        return self.context.new_page()
 
-        return page
-    
-    def _cleanup_browser(self, page):
-        """Limpa todos os recursos do navegador de forma segura"""
-        try:
-            if page:
-                try:
-                    page.close()
-                except:
-                    pass
-        except:
-            pass
-        
-        try:
-            if hasattr(self, 'context') and self.context:
-                try:
-                    self.context.close()
-                except:
-                    pass
-        except:
-            pass
-        
-        try:
-            if hasattr(self, 'browser') and self.browser:
-                try:
-                    self.browser.close()
-                except:
-                    pass
-        except:
-            pass
-        
-        try:
-            if hasattr(self, 'playwright') and self.playwright:
-                try:
-                    self.playwright.stop()
-                except:
-                    pass
-        except:
-            pass
-    
     @staticmethod
     def get_week_extremes() -> str:
         target_date = datetime.now().date()
@@ -73,44 +45,41 @@ class DataScrapper:
         sunday = monday + timedelta(days=6)
 
         meses = {
-            1: "ENERO", 2: "FEBRERO", 3: "MARZO", 4: "ABRIL", 
-            5: "MAYO", 6: "JUNIO", 7: "JULIO", 8: "AGOSTO", 
-            9: "SEPTIEMBRE", 10: "OCTUBRE", 11: "NOVIEMBRE", 12: "DICIEMBRE"
+            1: "ENERO", 2: "FEBRERO", 3: "MARZO", 4: "ABRIL",
+            5: "MAYO", 6: "JUNIO", 7: "JULIO", 8: "AGOSTO",
+            9: "SEPTIEMBRE", 10: "OCTUBRE", 11: "NOVIEMBRE", 12: "DICIEMBRE",
         }
 
-        # QUANDO A SEMANA COMEÇAR NO MES E TERMINAR NO MESMO MES
         if monday.month == sunday.month:
-            nome_mes = meses[monday.month]
-            return f"{monday.day}-{sunday.day} DE {nome_mes}".lower()
-        # QUANDO A SEMANA COMEÇAR NO MES E TERMINAR NO OUTRO MES
+            return f"{monday.day}-{sunday.day} DE {meses[monday.month]}".lower()
         else:
-            mes_segunda = meses[monday.month]
-            mes_domingo = meses[sunday.month]
-            return f"{monday.day} DE {mes_segunda} A {sunday.day} DE {mes_domingo}".lower()
+            return (
+                f"{monday.day} DE {meses[monday.month]} "
+                f"A {sunday.day} DE {meses[sunday.month]}"
+            ).lower()
 
     @staticmethod
     def scrape_data(page) -> list[str]:
-        content = []
         html = page.content()
-        soup = BeautifulSoup(html, 'html.parser')
-        
-        for header in soup.find_all(['h1', 'h2', 'h3']):
-            content.append(header.text.strip())
+        soup = BeautifulSoup(html, "html.parser")
 
-        return content
-
+        return [h.text.strip() for h in soup.find_all(["h1", "h2", "h3"])]
 
     def extract_this_month(self):
-        page = None
         try:
             page = self.open_browser()
             data = []
-            
-            current_month = datetime.now().strftime('%B').lower()
-            current_year = datetime.now().year
-            current_week_text = self.get_week_extremes() 
 
-            link = f"https://wol.jw.org/es/wol/library/r4/lp-s/biblioteca/guía-de-actividades/guía-de-actividades-{current_year}/{current_month}"
+            current_month = datetime.now().strftime("%B").lower()
+            current_year = datetime.now().year
+            current_week_text = self.get_week_extremes()
+
+            link = (
+                f"https://wol.jw.org/es/wol/library/r4/lp-s/"
+                f"biblioteca/guía-de-actividades/"
+                f"guía-de-actividades-{current_year}/{current_month}"
+            )
+
             page.goto(link)
 
             items = page.locator("#materialNav nav ul li a.cardContainer").all()
@@ -119,105 +88,90 @@ class DataScrapper:
             found_current_week = False
 
             for item in items:
-                item_text = item.inner_text().lower()
-
-                if current_week_text.lower() in item_text:
+                if current_week_text in item.inner_text().lower():
                     found_current_week = True
-                
+
                 if found_current_week:
                     href = item.get_attribute("href")
-                    full_url = f"https://wol.jw.org{href}" if href.startswith('/') else href
-                    valid_links.append(full_url)
+                    valid_links.append(
+                        f"https://wol.jw.org{href}" if href.startswith("/") else href
+                    )
 
             for url in valid_links:
                 page.goto(url)
                 data.append(self.scrape_data(page))
-            
-            return process_data(data)
-        except Exception as e:
-            print(f"Erro em extract_this_month: {str(e)}")
-            return []
-        finally:
-            self._cleanup_browser(page)
 
-    
+            path = os.path.join(self.json_dir, "programa_do_mes_atual.json")
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(process_data(data), f, indent=4, ensure_ascii=False)
+
+        except Exception as e:
+            print(f"Erro em extract_this_month: {e}")
 
     def extract_this_week(self) -> list[str]:
-        page = None
         try:
             page = self.open_browser()
-
-            link = "https://wol.jw.org/es/wol/h/r4/lp-s"
-
-            page.goto(link)
+            page.goto("https://wol.jw.org/es/wol/h/r4/lp-s")
 
             page.click("#menuToday")
-        
             page.wait_for_load_state("networkidle")
 
-            current_week = self.get_week_extremes() 
-            
+            current_week = self.get_week_extremes()
             links = page.locator("ul.directory.navCard li.todayItem a.cardContainer")
-        
-            # Se não encontrar o link, interrompe
-            if links.count() == 0:
-                return []
 
-            count = links.count()
-            
-            for i in range(count):
+            for i in range(links.count()):
                 link = links.nth(i)
-                text = link.inner_text()
-                
-                if current_week.lower() in text.lower():
+                if current_week in link.inner_text().lower():
                     link.click()
                     break
 
             data = self.scrape_data(page)
-            
-            return process_data(data)
+
+            path = os.path.join(self.json_dir, "programa_da_semana.json")
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(process_data(data), f, indent=4, ensure_ascii=False)
+
+            return data
+
         except Exception as e:
-            print(f"Erro em extract_this_week: {str(e)}")
+            print(f"Erro em extract_this_week: {e}")
             return []
-        finally:
-            self._cleanup_browser(page)
-    
+
     def extract_all_available_weeks(self):
-        page = None
         try:
             page = self.open_browser()
-
             current_year = datetime.now().year
-            link = f"https://wol.jw.org/es/wol/library/r4/lp-s/biblioteca/guía-de-actividades/guía-de-actividades-{current_year}"
-            selector = "ul.directory.navCard li.row.card a.cardContainer"
-            
-            page.goto(link)
 
-            page.wait_for_selector(selector)
-            
-            locators = page.locator(selector).all()
-            
+            link = (
+                f"https://wol.jw.org/es/wol/library/r4/lp-s/"
+                f"biblioteca/guía-de-actividades/guía-de-actividades-{current_year}"
+            )
+
+            page.goto(link)
+            page.wait_for_selector("ul.directory.navCard li.row.card a.cardContainer")
+
             urls = []
-            for locator in locators:
+            for locator in page.locator(
+                "ul.directory.navCard li.row.card a.cardContainer"
+            ).all():
                 href = locator.get_attribute("href")
-                if href:
-                    full_url = f"https://wol.jw.org{href}"
-                    urls.append(full_url)
-            
+                urls.append(f"https://wol.jw.org{href}")
+
             data = self.__extract_everything_from_now(page, urls)
 
-            return process_data(data)
+            path = os.path.join(
+                self.json_dir, "programa_de_todas_as_semanas_disponiveis.json"
+            )
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(process_data(data), f, indent=4, ensure_ascii=False)
+
         except Exception as e:
-            print(f"Erro em extract_all_available_weeks: {str(e)}")
-            return []
-        finally:
-            self._cleanup_browser(page)
+            print(f"Erro em extract_all_available_weeks: {e}")
 
     def __extract_everything_from_now(self, page, urls):
-        valid_links = []
         data = []
+        valid_links = []
         current_week_text = self.get_week_extremes()
-     
         found_current_week = False
 
         for url in urls:
@@ -225,19 +179,21 @@ class DataScrapper:
             items = page.locator("#materialNav nav ul li a.cardContainer").all()
 
             for item in items:
-                if not found_current_week:
-                    item_text = item.inner_text().lower()
-                    if current_week_text in item_text:
-                        found_current_week = True
-                
+                if not found_current_week and current_week_text in item.inner_text().lower():
+                    found_current_week = True
+
                 if found_current_week:
                     href = item.get_attribute("href")
-                    full_url = f"https://wol.jw.org{href}" if href.startswith('/') else href
-                    valid_links.append(full_url)
+                    valid_links.append(
+                        f"https://wol.jw.org{href}" if href.startswith("/") else href
+                    )
 
         for url in valid_links:
             page.goto(url)
             data.append(self.scrape_data(page))
-        
-        
+
         return data
+
+# Exemplo de uso
+# main = DataScrapper()
+# data = main.extract_all_available_weeks()
