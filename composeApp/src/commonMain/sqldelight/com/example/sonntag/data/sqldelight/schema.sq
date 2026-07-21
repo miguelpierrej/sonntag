@@ -1,0 +1,309 @@
+-- Singleton para configuracoes gerais da instituicao
+CREATE TABLE settings (
+    id INTEGER PRIMARY KEY DEFAULT 1,
+    nome TEXT NOT NULL,
+    endereco TEXT,
+    telefone TEXT
+);
+
+-- Configuracao de dias e horarios em que reunioes normalmente ocorrem
+CREATE TABLE meeting_days (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    dia_semana INTEGER NOT NULL, -- 1=seg, 2=ter, ..., 7=dom
+    hora TEXT NOT NULL -- HH:mm
+);
+
+-- Membros da congregacao
+CREATE TABLE members (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome TEXT NOT NULL,
+    sobrenome TEXT NOT NULL
+);
+
+-- Grupos de limpeza
+CREATE TABLE cleaning_groups (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome TEXT NOT NULL UNIQUE
+);
+
+-- Reunioes agendadas
+CREATE TABLE meetings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    data TEXT NOT NULL, -- yyyy-MM-dd
+    hora TEXT NOT NULL, -- HH:mm
+    tipo TEXT NOT NULL -- WEEKDAY ou WEEKEND
+);
+
+-- Programacao de discursos nas reunioes de fim de semana
+CREATE TABLE weekend_programs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    meeting_id INTEGER NOT NULL UNIQUE,
+    titulo_discurso TEXT,
+    orador_id INTEGER,
+    orador_nome TEXT,
+    presidente_id INTEGER,
+    dirigente_id INTEGER,
+    leitor_id INTEGER,
+    FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE,
+    FOREIGN KEY (orador_id) REFERENCES members(id) ON DELETE SET NULL,
+    FOREIGN KEY (presidente_id) REFERENCES members(id) ON DELETE SET NULL,
+    FOREIGN KEY (dirigente_id) REFERENCES members(id) ON DELETE SET NULL,
+    FOREIGN KEY (leitor_id) REFERENCES members(id) ON DELETE SET NULL
+);
+
+-- Programacao das reunioes de meio de semana (formulario S-140)
+CREATE TABLE midweek_programs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    meeting_id INTEGER NOT NULL UNIQUE,
+    -- Cabecalho
+    leitura_semanal TEXT,
+    presidente_id INTEGER,
+    conselheiro_id INTEGER,
+    cantico_inicial TEXT,
+    oracao_inicial_id INTEGER,
+    -- Tesouros da Palavra de Deus
+    tesouros_titulo TEXT,
+    tesouros_orador_id INTEGER,
+    joias_id INTEGER,
+    leitura_biblia_id INTEGER,
+    -- Faca seu melhor no ministerio (ate 3 partes)
+    min1_titulo TEXT,
+    min1_minutos TEXT,
+    min1_estudante_id INTEGER,
+    min1_ajudante_id INTEGER,
+    min2_titulo TEXT,
+    min2_minutos TEXT,
+    min2_estudante_id INTEGER,
+    min2_ajudante_id INTEGER,
+    min3_titulo TEXT,
+    min3_minutos TEXT,
+    min3_estudante_id INTEGER,
+    min3_ajudante_id INTEGER,
+    min4_titulo TEXT,
+    min4_minutos TEXT,
+    min4_estudante_id INTEGER,
+    min4_ajudante_id INTEGER,
+    -- Nossa vida crista
+    cantico_meio TEXT,
+    vida1_titulo TEXT,
+    vida1_minutos TEXT,
+    vida1_id INTEGER,
+    vida2_titulo TEXT,
+    vida2_minutos TEXT,
+    vida2_id INTEGER,
+    estudo_dirigente_id INTEGER,
+    estudo_leitor_id INTEGER,
+    cantico_final TEXT,
+    oracao_final_id INTEGER,
+    FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE
+);
+
+-- Atribuicao de grupos de limpeza por semana
+CREATE TABLE cleaning_assignments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    semana_iso INTEGER NOT NULL,
+    ano INTEGER NOT NULL,
+    group_id INTEGER NOT NULL,
+    FOREIGN KEY (group_id) REFERENCES cleaning_groups(id) ON DELETE CASCADE,
+    UNIQUE(semana_iso, ano)
+);
+
+-- Queries basicas
+
+getSettings:
+SELECT * FROM settings WHERE id = 1;
+
+insertSettings:
+INSERT OR REPLACE INTO settings (id, nome, endereco, telefone)
+VALUES (1, ?, ?, ?);
+
+deleteSettings:
+DELETE FROM settings WHERE id = 1;
+
+-- Meeting days queries
+
+getAllMeetingDays:
+SELECT * FROM meeting_days ORDER BY dia_semana ASC;
+
+getMeetingDayById:
+SELECT * FROM meeting_days WHERE id = ?;
+
+insertMeetingDay:
+INSERT INTO meeting_days (dia_semana, hora) VALUES (?, ?);
+
+updateMeetingDay:
+UPDATE meeting_days SET dia_semana = ?, hora = ? WHERE id = ?;
+
+deleteMeetingDay:
+DELETE FROM meeting_days WHERE id = ?;
+
+deleteAllMeetingDays:
+DELETE FROM meeting_days;
+
+-- Members queries
+
+getAllMembers:
+SELECT * FROM members ORDER BY nome ASC, sobrenome ASC;
+
+getMemberById:
+SELECT * FROM members WHERE id = ?;
+
+insertMember:
+INSERT INTO members (nome, sobrenome) VALUES (?, ?);
+
+updateMember:
+UPDATE members SET nome = ?, sobrenome = ? WHERE id = ?;
+
+deleteMember:
+DELETE FROM members WHERE id = ?;
+
+-- Cleaning groups queries
+
+getAllCleaningGroups:
+SELECT * FROM cleaning_groups ORDER BY nome ASC;
+
+getCleaningGroupById:
+SELECT * FROM cleaning_groups WHERE id = ?;
+
+insertCleaningGroup:
+INSERT INTO cleaning_groups (nome) VALUES (?);
+
+updateCleaningGroup:
+UPDATE cleaning_groups SET nome = ? WHERE id = ?;
+
+deleteCleaningGroup:
+DELETE FROM cleaning_groups WHERE id = ?;
+
+-- Meetings queries
+
+getAllMeetings:
+SELECT * FROM meetings ORDER BY data ASC, hora ASC;
+
+getMeetingById:
+SELECT * FROM meetings WHERE id = ?;
+
+getMeetingsByType:
+SELECT * FROM meetings WHERE tipo = ? ORDER BY data ASC, hora ASC;
+
+insertMeeting:
+INSERT INTO meetings (data, hora, tipo) VALUES (?, ?, ?);
+
+updateMeeting:
+UPDATE meetings SET data = ?, hora = ?, tipo = ? WHERE id = ?;
+
+deleteMeeting:
+DELETE FROM meetings WHERE id = ?;
+
+getMeetingsByDateRange:
+SELECT * FROM meetings WHERE data >= ? AND data <= ? ORDER BY data ASC, hora ASC;
+
+getFutureMeetings:
+SELECT * FROM meetings WHERE data > ? ORDER BY data ASC, hora ASC;
+
+getFutureMeetingsWithProgram:
+SELECT meetings.*
+FROM meetings
+INNER JOIN weekend_programs ON weekend_programs.meeting_id = meetings.id
+WHERE meetings.data > ?
+ORDER BY meetings.data ASC, meetings.hora ASC;
+
+deleteFutureMeetingsWithoutProgram:
+DELETE FROM meetings
+WHERE data > ?
+  AND id NOT IN (
+    SELECT meeting_id FROM weekend_programs
+  );
+
+-- Weekend programs queries
+
+getAllWeekendPrograms:
+SELECT * FROM weekend_programs ORDER BY id ASC;
+
+getWeekendProgramByMeetingId:
+SELECT * FROM weekend_programs WHERE meeting_id = ?;
+
+insertWeekendProgram:
+INSERT INTO weekend_programs (meeting_id, titulo_discurso, orador_id, orador_nome, presidente_id, dirigente_id, leitor_id)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+updateWeekendProgram:
+UPDATE weekend_programs SET titulo_discurso = ?, orador_id = ?, orador_nome = ?, presidente_id = ?, dirigente_id = ?, leitor_id = ?
+WHERE meeting_id = ?;
+
+deleteWeekendProgram:
+DELETE FROM weekend_programs WHERE meeting_id = ?;
+
+-- Midweek programs queries
+
+getAllMidweekPrograms:
+SELECT * FROM midweek_programs ORDER BY id ASC;
+
+getMidweekProgramByMeetingId:
+SELECT * FROM midweek_programs WHERE meeting_id = ?;
+
+insertMidweekProgram:
+INSERT INTO midweek_programs (
+    meeting_id,
+    leitura_semanal, presidente_id, conselheiro_id, cantico_inicial, oracao_inicial_id,
+    tesouros_titulo, tesouros_orador_id, joias_id, leitura_biblia_id,
+    min1_titulo, min1_minutos, min1_estudante_id, min1_ajudante_id,
+    min2_titulo, min2_minutos, min2_estudante_id, min2_ajudante_id,
+    min3_titulo, min3_minutos, min3_estudante_id, min3_ajudante_id,
+    min4_titulo, min4_minutos, min4_estudante_id, min4_ajudante_id,
+    cantico_meio,
+    vida1_titulo, vida1_minutos, vida1_id,
+    vida2_titulo, vida2_minutos, vida2_id,
+    estudo_dirigente_id, estudo_leitor_id, cantico_final, oracao_final_id
+)
+VALUES (
+    ?,
+    ?, ?, ?, ?, ?,
+    ?, ?, ?, ?,
+    ?, ?, ?, ?,
+    ?, ?, ?, ?,
+    ?, ?, ?, ?,
+    ?, ?, ?, ?,
+    ?,
+    ?, ?, ?,
+    ?, ?, ?,
+    ?, ?, ?, ?
+);
+
+updateMidweekProgram:
+UPDATE midweek_programs SET
+    leitura_semanal = ?, presidente_id = ?, conselheiro_id = ?, cantico_inicial = ?, oracao_inicial_id = ?,
+    tesouros_titulo = ?, tesouros_orador_id = ?, joias_id = ?, leitura_biblia_id = ?,
+    min1_titulo = ?, min1_minutos = ?, min1_estudante_id = ?, min1_ajudante_id = ?,
+    min2_titulo = ?, min2_minutos = ?, min2_estudante_id = ?, min2_ajudante_id = ?,
+    min3_titulo = ?, min3_minutos = ?, min3_estudante_id = ?, min3_ajudante_id = ?,
+    min4_titulo = ?, min4_minutos = ?, min4_estudante_id = ?, min4_ajudante_id = ?,
+    cantico_meio = ?,
+    vida1_titulo = ?, vida1_minutos = ?, vida1_id = ?,
+    vida2_titulo = ?, vida2_minutos = ?, vida2_id = ?,
+    estudo_dirigente_id = ?, estudo_leitor_id = ?, cantico_final = ?, oracao_final_id = ?
+WHERE meeting_id = ?;
+
+deleteMidweekProgram:
+DELETE FROM midweek_programs WHERE meeting_id = ?;
+
+-- Cleaning assignments queries
+
+getAllCleaningAssignments:
+SELECT * FROM cleaning_assignments ORDER BY ano ASC, semana_iso ASC;
+
+getCleaningAssignmentByWeek:
+SELECT * FROM cleaning_assignments WHERE semana_iso = ? AND ano = ?;
+
+getCleaningAssignmentsByYear:
+SELECT * FROM cleaning_assignments WHERE ano = ? ORDER BY semana_iso ASC;
+
+insertCleaningAssignment:
+INSERT INTO cleaning_assignments (semana_iso, ano, group_id) VALUES (?, ?, ?);
+
+updateCleaningAssignment:
+UPDATE cleaning_assignments SET group_id = ? WHERE semana_iso = ? AND ano = ?;
+
+deleteCleaningAssignmentByWeek:
+DELETE FROM cleaning_assignments WHERE semana_iso = ? AND ano = ?;
+
+
