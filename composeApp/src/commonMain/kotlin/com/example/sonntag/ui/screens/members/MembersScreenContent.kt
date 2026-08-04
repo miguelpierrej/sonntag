@@ -1,5 +1,7 @@
 package com.example.sonntag.ui.screens.members
 
+import com.example.sonntag.i18n.tr
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -49,14 +51,14 @@ fun MembersScreenContent() {
     }
 
     ScreenScaffold(
-        title = "Membros",
-        subtitle = "${state.members.size} cadastrados",
+        title = tr("Membros"),
+        subtitle = tr("{0} cadastrados", state.members.size),
         actions = {
             Button(onClick = {
                 editingMember.value = null
                 showFormDialog.value = true
             }) {
-                Text("Novo membro")
+                Text(tr("Novo membro"))
             }
         },
     ) {
@@ -67,7 +69,7 @@ fun MembersScreenContent() {
             OutlinedTextField(
                 value = state.search,
                 onValueChange = viewModel::onSearchChanged,
-                label = { Text("Buscar por nome/sobrenome") },
+                label = { Text(tr("Buscar por nome/sobrenome")) },
                 modifier = Modifier.weight(1f),
             )
         }
@@ -83,9 +85,9 @@ fun MembersScreenContent() {
             state.members.isEmpty() -> {
                 EmptyState(
                     icon = Icons.Outlined.PersonOutline,
-                    title = "Nenhum membro cadastrado",
-                    description = "Adicione membros para escalá-los nas reuniões e atribuições.",
-                    actionLabel = "Cadastrar primeiro membro",
+                    title = tr("Nenhum membro cadastrado"),
+                    description = tr("Adicione membros para escalá-los nas reuniões e atribuições."),
+                    actionLabel = tr("Cadastrar primeiro membro"),
                     onAction = {
                         editingMember.value = null
                         showFormDialog.value = true
@@ -95,8 +97,8 @@ fun MembersScreenContent() {
             filteredMembers.isEmpty() -> {
                 EmptyState(
                     icon = Icons.Outlined.PersonOutline,
-                    title = "Sem resultados",
-                    description = "Nenhum membro encontrado para o termo \"${state.search.trim()}\".",
+                    title = tr("Sem resultados"),
+                    description = "${tr("Nenhum membro encontrado para o termo")} \"${state.search.trim()}\".",
                 )
             }
             else -> {
@@ -104,20 +106,17 @@ fun MembersScreenContent() {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                     ) {
-                        Text(
-                            "Nome",
+                        Text(tr("Nome"),
                             modifier = Modifier.weight(1f),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        Text(
-                            "Sobrenome",
+                        Text(tr("Sobrenome"),
                             modifier = Modifier.weight(1f),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        Text(
-                            "Ações",
+                        Text(tr("Ações"),
                             modifier = Modifier.weight(1f),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -148,10 +147,10 @@ fun MembersScreenContent() {
                                         editingMember.value = member
                                         showFormDialog.value = true
                                     }) {
-                                        Text("Editar")
+                                        Text(tr("Editar"))
                                     }
                                     TextButton(onClick = { pendingDeleteId.value = member.id }) {
-                                        Text("Excluir")
+                                        Text(tr("Excluir"))
                                     }
                                 }
                             }
@@ -163,7 +162,7 @@ fun MembersScreenContent() {
 
         state.errorMessage?.let {
             Spacer(modifier = Modifier.height(12.dp))
-            Text(it, color = MaterialTheme.colorScheme.error)
+            Text(tr(it), color = MaterialTheme.colorScheme.error)
         }
     }
 
@@ -186,19 +185,19 @@ fun MembersScreenContent() {
     if (pendingDeleteId.value != null) {
         AlertDialog(
             onDismissRequest = { pendingDeleteId.value = null },
-            title = { Text("Confirmar exclusão") },
-            text = { Text("Deseja realmente remover este membro?") },
+            title = { Text(tr("Confirmar exclusão")) },
+            text = { Text(tr("Deseja realmente remover este membro?")) },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.deleteMember(pendingDeleteId.value!!)
                     pendingDeleteId.value = null
                 }) {
-                    Text("Excluir")
+                    Text(tr("Excluir"))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { pendingDeleteId.value = null }) {
-                    Text("Cancelar")
+                    Text(tr("Cancelar"))
                 }
             },
         )
@@ -217,19 +216,19 @@ private fun MemberFormDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (initial == null) "Novo membro" else "Editar membro") },
+        title = { Text(if (initial == null) tr("Novo membro") else tr("Editar membro")) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = nome.value,
                     onValueChange = { nome.value = it },
-                    label = { Text("Nome") },
+                    label = { Text(tr("Nome")) },
                     modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
                     value = sobrenome.value,
                     onValueChange = { sobrenome.value = it },
-                    label = { Text("Sobrenome") },
+                    label = { Text(tr("Sobrenome")) },
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -239,12 +238,12 @@ private fun MemberFormDialog(
                 onClick = { onConfirm(nome.value, sobrenome.value) },
                 enabled = isValid,
             ) {
-                Text("Salvar")
+                Text(tr("Salvar"))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancelar")
+                Text(tr("Cancelar"))
             }
         },
     )

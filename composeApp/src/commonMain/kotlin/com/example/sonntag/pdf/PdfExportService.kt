@@ -10,6 +10,7 @@ data class MeetingProgramPdfData(
     val presidente: String?,
     val dirigenteEstudo: String?,
     val leitor: String?,
+    val labels: WeekendPdfStrings,
 )
 
 data class PdfMeetingLine(
@@ -36,6 +37,7 @@ data class MonthlyProgramPdfData(
     val mesLabel: String,
     val fileSlug: String,
     val reunioes: List<PdfMeetingLine>,
+    val labels: WeekendPdfStrings,
 )
 
 // ─── Meio de semana (S-140 / S-89) ───────────────────────────────────────────
@@ -73,6 +75,7 @@ data class MidweekProgramPdfData(
     val mesLabel: String,
     val fileSlug: String,
     val semanas: List<MidweekWeekPdf>,
+    val labels: MidweekPdfStrings,
 )
 
 /** Um comprovante de designacao (S-89). */
@@ -89,6 +92,7 @@ data class MidweekAssignmentsPdfData(
     val mesLabel: String,
     val fileSlug: String,
     val designacoes: List<MidweekAssignmentPdf>,
+    val labels: AssignmentPdfStrings,
 )
 
 data class CleaningScheduleLine(
@@ -103,6 +107,29 @@ data class CleaningSchedulePdfData(
     val mesLabel: String,
     val fileSlug: String,
     val semanas: List<CleaningScheduleLine>,
+    val labels: CleaningPdfStrings,
+)
+
+// ─── Audio/video e acomodadores ──────────────────────────────────────────────
+
+/** Uma reuniao com as designacoes tecnicas ja resolvidas em nomes. */
+data class AvScheduleLine(
+    val dataLabel: String,
+    val tipoLabel: String,
+    val audio: String?,
+    val video: String?,
+    val plataforma: List<String>,
+    val microfones: List<String>,
+    val acomodadores: List<String>,
+)
+
+data class AvSchedulePdfData(
+    val congregacao: String,
+    val endereco: String?,
+    val mesLabel: String,
+    val fileSlug: String,
+    val reunioes: List<AvScheduleLine>,
+    val labels: AvPdfStrings,
 )
 
 interface PdfExportService {
@@ -116,6 +143,7 @@ interface PdfExportService {
     fun exportCleaningSchedulePng(data: CleaningSchedulePdfData): Boolean
     fun exportMidweekProgram(data: MidweekProgramPdfData): Boolean
     fun exportMidweekAssignments(data: MidweekAssignmentsPdfData): Boolean
+    fun exportAvSchedule(data: AvSchedulePdfData): Boolean
 }
 
 expect fun createPdfExportService(): PdfExportService

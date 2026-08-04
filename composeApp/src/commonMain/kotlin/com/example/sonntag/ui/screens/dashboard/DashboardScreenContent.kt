@@ -1,5 +1,9 @@
 package com.example.sonntag.ui.screens.dashboard
 
+import com.example.sonntag.i18n.tr
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,39 +25,199 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.sonntag.ui.components.ScreenScaffold
+import org.koin.compose.koinInject
+
+/** Quantidade maxima de reunioes pendentes listadas dentro do card. */
+private const val MAX_PENDING_PREVIEW = 3
 
 @Composable
-fun DashboardScreenContent() {
+fun DashboardScreenContent(onNavigate: (String) -> Unit = {}) {
+    val viewModel = koinInject<DashboardViewModel>()
+    val state by viewModel.uiState.collectAsState()
+
+    // Recarrega sempre que o painel volta a ser exibido.
+    LaunchedEffect(Unit) { viewModel.load() }
+
     ScreenScaffold(
-        title = "Dashboard",
-        subtitle = "Visão geral da congregação",
+        title = tr("Dashboard"),
+        subtitle = tr("Visão geral da congregação"),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             DashboardCard(
-                title = "Próxima reunião",
+                title = tr("Próxima reunião"),
                 icon = Icons.Outlined.CalendarMonth,
                 modifier = Modifier.weight(1f),
-            )
+                onClick = state.nextMeeting?.let { next -> { onNavigate(next.navTarget) } },
+            ) {
+                NextMeetingContent(state.nextMeeting, state.isLoading)
+            }
             DashboardCard(
-                title = "Limpeza da semana",
+                title = tr("Limpeza da semana"),
                 icon = Icons.Outlined.CleaningServices,
                 modifier = Modifier.weight(1f),
-            )
+                onClick = { onNavigate(NAV_CLEANING) },
+            ) {
+                CleaningContent(state.cleaning, state.isLoading)
+            }
             DashboardCard(
-                title = "Programações pendentes",
+                title = tr("Programações pendentes"),
                 icon = Icons.Outlined.Pending,
                 modifier = Modifier.weight(1f),
-            )
+                onClick = state.pendingItems.firstOrNull()?.let { first -> { onNavigate(first.navTarget) } },
+            ) {
+                PendingContent(state.pendingItems, state.pendingWindowDays, state.isLoading)
+            }
         }
     }
+}
+
+@Composable
+private fun NextMeetingContent(next: NextMeetingInfo?, isLoading: Boolean) {
+    if (next == null) {
+        PlaceholderText(if (isLoading) tr("Carregando...") else tr("Nenhuma reunião agendada"))
+        return
+    }
+
+    Badge(text = next.relativeLabel)
+    Spacer(modifier = Modifier.height(10.dp))
+    CardHighlight(next.dateLabel)
+    CardCaption("${next.time} • ${next.typeLabel}")
+    if (next.details.isNotEmpty()) {
+        Spacer(modifier = Modifier.height(12.dp))
+        next.details.forEach { DetailRow(label = it.label, value = it.value) }
+    }
+}
+
+@Composable
+private fun CleaningContent(cleaning: CleaningWeekInfo?, isLoading: Boolean) {
+    if (cleaning == null) {
+        PlaceholderText(if (isLoading) tr("Carregando...") else tr("Sem grupo atribuído"))
+        return
+    }
+
+    if (cleaning.groupName != null) {
+        CardHighlight(cleaning.groupName)
+    } else {
+        CardHighlight(tr("Sem grupo atribuído"), muted = true)
+    }
+    CardCaption(cleaning.periodText)
+    Spacer(modifier = Modifier.height(12.dp))
+    DetailRow(
+        label = tr("Próxima semana"),
+        value = cleaning.nextWeekGroupName ?: tr("Sem grupo atribuído"),
+    )
+}
+
+@Composable
+private fun PendingContent(items: List<PendingProgramItem>, windowDays: Int, isLoading: Boolean) {
+    if (isLoading) {
+        PlaceholderText(tr("Carregando..."))
+        return
+    }
+    if (items.isEmpty()) {
+        CardHighlight(tr("Tudo em dia"))
+        CardCaption(tr("Próximos {0} dias", windowDays))
+        return
+    }
+
+    CardHighlight(items.size.toString())
+    CardCaption(
+        if (items.size == 1) tr("reunião sem programação completa")
+        else tr("reuniões sem programação completa"),
+    )
+    Spacer(modifier = Modifier.height(12.dp))
+    items.take(MAX_PENDING_PREVIEW).forEach {
+        DetailRow(label = it.typeLabel, value = it.dateLabel)
+    }
+    if (items.size > MAX_PENDING_PREVIEW) {
+        Text(
+            text = tr("+{0} outras", items.size - MAX_PENDING_PREVIEW),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun CardHighlight(text: String, muted: Boolean = false) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleLarge,
+        fontWeight = FontWeight.SemiBold,
+        color = if (muted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
+    )
+}
+
+@Composable
+private fun CardCaption(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
+}
+
+@Composable
+private fun PlaceholderText(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+@Composable
+private fun DetailRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(
+            text = "$label:",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun Badge(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier
+            .background(
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
+                RoundedCornerShape(6.dp),
+            )
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+    )
 }
 
 @Composable
@@ -61,9 +225,13 @@ private fun DashboardCard(
     title: String,
     icon: ImageVector,
     modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    content: @Composable () -> Unit,
 ) {
     Card(
-        modifier = modifier.heightIn(min = 160.dp),
+        modifier = modifier
+            .heightIn(min = 160.dp)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface,
@@ -92,12 +260,8 @@ private fun DashboardCard(
                     color = MaterialTheme.colorScheme.onSurface,
                 )
             }
-            Spacer(modifier = Modifier.height(20.dp))
-            Text(
-                text = "Conteúdo em breve",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Spacer(modifier = Modifier.height(16.dp))
+            content()
         }
     }
 }

@@ -1,5 +1,7 @@
 package com.example.sonntag.ui.screens.cleaninggroups
 
+import com.example.sonntag.i18n.tr
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -54,14 +56,14 @@ fun CleaningGroupsScreenContent() {
             OutlinedTextField(
                 value = state.search,
                 onValueChange = viewModel::onSearchChanged,
-                label = { Text("Buscar grupo") },
+                label = { Text(tr("Buscar grupo")) },
                 modifier = Modifier.weight(1f),
             )
             Button(onClick = {
                 editingGroup.value = null
                 showFormDialog.value = true
             }) {
-                Text("Novo grupo")
+                Text(tr("Novo grupo"))
             }
         }
 
@@ -76,9 +78,9 @@ fun CleaningGroupsScreenContent() {
             state.groups.isEmpty() -> {
                 EmptyState(
                     icon = Icons.Outlined.GroupWork,
-                    title = "Nenhum grupo de limpeza",
-                    description = "Crie grupos para escalar os responsáveis pela limpeza semanal.",
-                    actionLabel = "Criar primeiro grupo",
+                    title = tr("Nenhum grupo de limpeza"),
+                    description = tr("Crie grupos para escalar os responsáveis pela limpeza semanal."),
+                    actionLabel = tr("Criar primeiro grupo"),
                     onAction = {
                         editingGroup.value = null
                         showFormDialog.value = true
@@ -88,22 +90,20 @@ fun CleaningGroupsScreenContent() {
             filteredGroups.isEmpty() -> {
                 EmptyState(
                     icon = Icons.Outlined.GroupWork,
-                    title = "Sem resultados",
-                    description = "Nenhum grupo encontrado para o termo \"${state.search.trim()}\".",
+                    title = tr("Sem resultados"),
+                    description = "${tr("Nenhum grupo encontrado para o termo")} \"${state.search.trim()}\".",
                 )
             }
             else -> {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                 ) {
-                    Text(
-                        "Nome",
+                    Text(tr("Nome"),
                         modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Text(
-                        "Ações",
+                    Text(tr("Ações"),
                         modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -129,10 +129,10 @@ fun CleaningGroupsScreenContent() {
                                     editingGroup.value = group
                                     showFormDialog.value = true
                                 }) {
-                                    Text("Editar")
+                                    Text(tr("Editar"))
                                 }
                                 TextButton(onClick = { pendingDeleteId.value = group.id }) {
-                                    Text("Excluir")
+                                    Text(tr("Excluir"))
                                 }
                             }
                         }
@@ -143,7 +143,7 @@ fun CleaningGroupsScreenContent() {
 
         state.errorMessage?.let {
             Spacer(modifier = Modifier.height(12.dp))
-            Text(it, color = MaterialTheme.colorScheme.error)
+            Text(tr(it), color = MaterialTheme.colorScheme.error)
         }
     }
 
@@ -166,19 +166,19 @@ fun CleaningGroupsScreenContent() {
     if (pendingDeleteId.value != null) {
         AlertDialog(
             onDismissRequest = { pendingDeleteId.value = null },
-            title = { Text("Confirmar exclusão") },
-            text = { Text("Deseja realmente remover este grupo?") },
+            title = { Text(tr("Confirmar exclusão")) },
+            text = { Text(tr("Deseja realmente remover este grupo?")) },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.deleteGroup(pendingDeleteId.value!!)
                     pendingDeleteId.value = null
                 }) {
-                    Text("Excluir")
+                    Text(tr("Excluir"))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { pendingDeleteId.value = null }) {
-                    Text("Cancelar")
+                    Text(tr("Cancelar"))
                 }
             },
         )
@@ -196,12 +196,12 @@ private fun GroupFormDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (initial == null) "Novo grupo" else "Editar grupo") },
+        title = { Text(if (initial == null) tr("Novo grupo") else tr("Editar grupo")) },
         text = {
             OutlinedTextField(
                 value = nome.value,
                 onValueChange = { nome.value = it },
-                label = { Text("Nome do grupo") },
+                label = { Text(tr("Nome do grupo")) },
                 modifier = Modifier.fillMaxWidth(),
             )
         },
@@ -210,12 +210,12 @@ private fun GroupFormDialog(
                 onClick = { onConfirm(nome.value) },
                 enabled = isValid,
             ) {
-                Text("Salvar")
+                Text(tr("Salvar"))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancelar")
+                Text(tr("Cancelar"))
             }
         },
     )

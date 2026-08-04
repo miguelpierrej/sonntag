@@ -12,6 +12,7 @@ import java.awt.EventQueue
 import java.awt.FileDialog
 import java.awt.Font
 import java.awt.Frame
+import java.awt.Graphics2D
 import java.awt.KeyboardFocusManager
 import java.awt.RenderingHints
 import java.awt.image.BufferedImage
@@ -19,8 +20,8 @@ import java.io.File
 import java.util.concurrent.FutureTask
 import javax.imageio.ImageIO
 
-private const val PLACEHOLDER_TEXT = "A definir"
-private const val PLACEHOLDER_DISCURSO = "Discurso a definir"
+/** Lado do icone de cabecalho nas exportacoes PNG (canvas de 1080px). */
+private const val PngHeaderIconSize = 140
 
 private val ColorTitle = Color(26, 29, 41)
 private val ColorMuted = Color(120, 124, 138)
@@ -40,22 +41,22 @@ private val ColorInk = Color(0x22, 0x22, 0x28)
 private class PdfExportServiceJvm : PdfExportService {
 
     override fun exportMeetingProgram(data: MeetingProgramPdfData): Boolean {
-        val path = chooseSavePath("${data.fileSlug}.pdf") ?: return false
+        val path = chooseSavePath("${data.fileSlug}.pdf", data.labels.common.dialogTitle) ?: return false
         return runCatching { writeMeetingProgramPdf(path, data) }.isSuccess
     }
 
     override fun exportMonthlyProgram(data: MonthlyProgramPdfData): Boolean {
-        val path = chooseSavePath("${data.fileSlug}.pdf") ?: return false
+        val path = chooseSavePath("${data.fileSlug}.pdf", data.labels.common.dialogTitle) ?: return false
         return runCatching { writeMonthlyProgramPdf(path, data) }.isSuccess
     }
 
     override fun exportMeetingProgramPng(data: MeetingProgramPdfData): Boolean {
-        val path = chooseSavePath("${data.fileSlug}.png") ?: return false
+        val path = chooseSavePath("${data.fileSlug}.png", data.labels.common.dialogTitle) ?: return false
         return runCatching { writeMeetingProgramPng(path, data) }.isSuccess
     }
 
     override fun exportMonthlyProgramPng(data: MonthlyProgramPdfData): Boolean {
-        val path = chooseSavePath("${data.fileSlug}.png") ?: return false
+        val path = chooseSavePath("${data.fileSlug}.png", data.labels.common.dialogTitle) ?: return false
         return runCatching { writeMonthlyProgramPng(path, data) }.isSuccess
     }
 
@@ -64,23 +65,28 @@ private class PdfExportServiceJvm : PdfExportService {
     override fun exportWeeklyProgramPng(data: WeeklyProgramPdfData): Boolean = false
 
     override fun exportCleaningSchedule(data: CleaningSchedulePdfData): Boolean {
-        val path = chooseSavePath("${data.fileSlug}.pdf") ?: return false
+        val path = chooseSavePath("${data.fileSlug}.pdf", data.labels.common.dialogTitle) ?: return false
         return runCatching { writeCleaningPdf(path, data) }.isSuccess
     }
 
     override fun exportCleaningSchedulePng(data: CleaningSchedulePdfData): Boolean {
-        val path = chooseSavePath("${data.fileSlug}.png") ?: return false
+        val path = chooseSavePath("${data.fileSlug}.png", data.labels.common.dialogTitle) ?: return false
         return runCatching { writeCleaningPng(path, data) }.isSuccess
     }
 
     override fun exportMidweekProgram(data: MidweekProgramPdfData): Boolean {
-        val path = chooseSavePath("${data.fileSlug}.pdf") ?: return false
+        val path = chooseSavePath("${data.fileSlug}.pdf", data.labels.dialogTitle) ?: return false
         return runCatching { writeMidweekProgramPdf(path, data) }.isSuccess
     }
 
     override fun exportMidweekAssignments(data: MidweekAssignmentsPdfData): Boolean {
-        val path = chooseSavePath("${data.fileSlug}.pdf") ?: return false
+        val path = chooseSavePath("${data.fileSlug}.pdf", data.labels.dialogTitle) ?: return false
         return runCatching { writeMidweekAssignmentsPdf(path, data) }.isSuccess
+    }
+
+    override fun exportAvSchedule(data: AvSchedulePdfData): Boolean {
+        val path = chooseSavePath("${data.fileSlug}.pdf", data.labels.dialogTitle) ?: return false
+        return runCatching { writeAvSchedulePdf(path, data) }.isSuccess
     }
 
     // ─── Monthly program PDF ─────────────────────────────────────────────────
@@ -115,9 +121,9 @@ private class PdfExportServiceJvm : PdfExportService {
                     contentWidth = contentWidth,
                     fonts = fonts,
                     congregacao = data.congregacao,
-                    title = "Programação de Fim de Semana",
+                    title = data.labels.tituloMensal,
                     subtitle = data.mesLabel,
-                    iconResource = "icons/calendar.png",
+                    iconResource = "icons/conferencia.png",
                 )
             } else {
                 drawCompactHeader(
@@ -126,7 +132,7 @@ private class PdfExportServiceJvm : PdfExportService {
                     marginLeft = marginLeft,
                     contentWidth = contentWidth,
                     fonts = fonts,
-                    text = "Programação de Fim de Semana — ${data.mesLabel}",
+                    text = "${data.labels.tituloMensal} — ${data.mesLabel}",
                 )
             }
         }
@@ -137,10 +143,10 @@ private class PdfExportServiceJvm : PdfExportService {
         if (data.reunioes.isEmpty()) {
             streams.last().setNonStrokingColor(ColorMuted)
             streams.last().setFont(fonts.italic, 12f)
-            drawText(streams.last(), "Nenhuma reunião configurada para este mês.", marginLeft, y - 14f)
+            drawText(streams.last(), data.labels.vazio, marginLeft, y - 14f)
         } else {
             data.reunioes.forEach { line ->
-                val blockHeight = measureMonthlyBlockHeight(line, fonts, contentWidth)
+                val blockHeight = measureMonthlyBlockHeight(line, fonts, contentWidth, data.labels)
                 if (y - blockHeight < marginBottom + 24f) {
                     streams.last().close()
                     y = startPage(isFirst = false)
@@ -152,6 +158,7 @@ private class PdfExportServiceJvm : PdfExportService {
                     x = marginLeft,
                     y = y,
                     width = contentWidth,
+                    labels = data.labels,
                 )
                 y -= blockHeight + blockGap
             }
@@ -161,7 +168,7 @@ private class PdfExportServiceJvm : PdfExportService {
 
         // Footers (right-aligned timestamp + left-aligned page numbers) once we know total
         val totalPages = pages.size
-        val timestamp = "Gerado em ${currentTimestamp()}"
+        val timestamp = data.labels.common.geradoEm(currentTimestamp())
         pages.forEachIndexed { idx, page ->
             PDPageContentStream(
                 document, page,
@@ -169,7 +176,7 @@ private class PdfExportServiceJvm : PdfExportService {
             ).use { c ->
                 c.setNonStrokingColor(ColorMuted)
                 c.setFont(fonts.regular, 8f)
-                drawText(c, "Página ${idx + 1} de $totalPages", marginLeft, marginBottom - 14f)
+                drawText(c, data.labels.common.pagina(idx + 1, totalPages), marginLeft, marginBottom - 14f)
                 val ts = textWidth(timestamp, fonts.regular, 8f)
                 drawText(c, timestamp, marginLeft + contentWidth - ts, marginBottom - 14f)
             }
@@ -206,9 +213,9 @@ private class PdfExportServiceJvm : PdfExportService {
                 contentWidth = contentWidth,
                 fonts = fonts,
                 congregacao = data.congregacao,
-                title = "Programação da Reunião",
+                title = data.labels.tituloReuniao,
                 subtitle = data.dateLabel,
-                iconResource = "icons/calendar.png",
+                iconResource = "icons/conferencia.png",
             )
 
             y -= 30f
@@ -233,11 +240,11 @@ private class PdfExportServiceJvm : PdfExportService {
             y -= blockHeaderHeight
 
             val rows = listOf(
-                "Título" to (data.tituloDiscurso ?: PLACEHOLDER_DISCURSO),
-                "Orador" to (data.orador ?: PLACEHOLDER_TEXT),
-                "Presidente" to (data.presidente ?: PLACEHOLDER_TEXT),
-                "Dirigente do estudo" to (data.dirigenteEstudo ?: PLACEHOLDER_TEXT),
-                "Leitor" to (data.leitor ?: PLACEHOLDER_TEXT),
+                data.labels.titulo to (data.tituloDiscurso ?: data.labels.common.discursoADefinir),
+                data.labels.orador to (data.orador ?: data.labels.common.aDefinir),
+                data.labels.presidente to (data.presidente ?: data.labels.common.aDefinir),
+                data.labels.dirigente to (data.dirigenteEstudo ?: data.labels.common.aDefinir),
+                data.labels.leitor to (data.leitor ?: data.labels.common.aDefinir),
             )
             val placeholders = listOf(
                 data.tituloDiscurso == null,
@@ -279,7 +286,7 @@ private class PdfExportServiceJvm : PdfExportService {
             }
 
             // Footer
-            val timestamp = "Gerado em ${currentTimestamp()}"
+            val timestamp = data.labels.common.geradoEm(currentTimestamp())
             c.setNonStrokingColor(ColorMuted)
             c.setFont(fonts.regular, 8f)
             val ts = textWidth(timestamp, fonts.regular, 8f)
@@ -309,21 +316,26 @@ private class PdfExportServiceJvm : PdfExportService {
         val headerBandHeight = 80f
         val headerBandBottom = headerBandTop - headerBandHeight
 
-        val iconSize = 24f
-        val iconGap = 10f
-        var congTextX = marginLeft
-
+        // Icone grande na borda direita da faixa: identifica o tipo de documento de
+        // relance, sem disputar espaco horizontal com o nome da congregacao.
+        val iconSize = 56f
         val iconBytes = PdfExportServiceJvm::class.java.classLoader
             .getResourceAsStream(iconResource)?.use { it.readBytes() }
-        val line1Baseline = headerBandTop - 14f
         if (iconBytes != null) {
             val image = PDImageXObject.createFromByteArray(document, iconBytes, "header-icon")
-            c.drawImage(image, marginLeft, line1Baseline - 4f, iconSize, iconSize)
-            congTextX = marginLeft + iconSize + iconGap
+            c.drawImage(
+                image,
+                marginLeft + contentWidth - iconSize,
+                headerBandBottom + (headerBandHeight - iconSize) / 2f,
+                iconSize,
+                iconSize,
+            )
         }
+
+        val line1Baseline = headerBandTop - 14f
         c.setNonStrokingColor(ColorTitle)
         c.setFont(fonts.bold, 16f)
-        drawText(c, congregacao, congTextX, line1Baseline)
+        drawText(c, congregacao, marginLeft, line1Baseline)
 
         c.setFont(fonts.bold, 20f)
         drawText(c, title, marginLeft, headerBandTop - 44f)
@@ -337,6 +349,26 @@ private class PdfExportServiceJvm : PdfExportService {
         c.moveTo(marginLeft, headerBandBottom); c.lineTo(marginLeft + contentWidth, headerBandBottom); c.stroke()
 
         return headerBandBottom - 16f
+    }
+
+    /**
+     * Icone grande no canto superior direito do PNG — mesmo papel do icone da faixa
+     * do PDF: dizer de relance de que documento se trata.
+     */
+    private fun drawPngHeaderIcon(
+        g: Graphics2D,
+        iconResource: String,
+        width: Int,
+        padding: Int,
+        size: Int = PngHeaderIconSize,
+    ) {
+        val icon = PdfExportServiceJvm::class.java.classLoader
+            .getResourceAsStream(iconResource)?.use { ImageIO.read(it) } ?: return
+        g.setRenderingHint(
+            RenderingHints.KEY_INTERPOLATION,
+            RenderingHints.VALUE_INTERPOLATION_BILINEAR,
+        )
+        g.drawImage(icon, width - padding - size, padding, size, size, null)
     }
 
     private fun drawCompactHeader(
@@ -359,14 +391,18 @@ private class PdfExportServiceJvm : PdfExportService {
 
     // ─── Monthly block helpers ───────────────────────────────────────────────
 
-    private fun monthlyBlockRows(line: PdfMeetingLine): List<Pair<String, Pair<String, Boolean>>> {
+    private fun monthlyBlockRows(
+        line: PdfMeetingLine,
+        labels: WeekendPdfStrings,
+    ): List<Pair<String, Pair<String, Boolean>>> {
         // Returns (label, (value, isPlaceholder))
+        val vazio = labels.common.aDefinir
         return listOf(
-            "Título" to ((line.tituloDiscurso ?: PLACEHOLDER_DISCURSO) to (line.tituloDiscurso == null)),
-            "Orador" to ((line.orador ?: PLACEHOLDER_TEXT) to (line.orador == null)),
-            "Presidente" to ((line.presidente ?: PLACEHOLDER_TEXT) to (line.presidente == null)),
-            "Dirigente do estudo" to ((line.dirigenteEstudo ?: PLACEHOLDER_TEXT) to (line.dirigenteEstudo == null)),
-            "Leitor" to ((line.leitor ?: PLACEHOLDER_TEXT) to (line.leitor == null)),
+            labels.titulo to ((line.tituloDiscurso ?: labels.common.discursoADefinir) to (line.tituloDiscurso == null)),
+            labels.orador to ((line.orador ?: vazio) to (line.orador == null)),
+            labels.presidente to ((line.presidente ?: vazio) to (line.presidente == null)),
+            labels.dirigente to ((line.dirigenteEstudo ?: vazio) to (line.dirigenteEstudo == null)),
+            labels.leitor to ((line.leitor ?: vazio) to (line.leitor == null)),
         )
     }
 
@@ -374,6 +410,7 @@ private class PdfExportServiceJvm : PdfExportService {
         line: PdfMeetingLine,
         fonts: PdfFonts,
         contentWidth: Float,
+        labels: WeekendPdfStrings,
     ): Float {
         val blockHeaderHeight = 28f
         val labelColWidth = 140f
@@ -383,7 +420,7 @@ private class PdfExportServiceJvm : PdfExportService {
         val rowVertPad = 6f
         val lineGap = 4f
         var h = blockHeaderHeight
-        monthlyBlockRows(line).forEach { (_, valueAndPlaceholder) ->
+        monthlyBlockRows(line, labels).forEach { (_, valueAndPlaceholder) ->
             val (value, isPlaceholder) = valueAndPlaceholder
             val font: PDFont = if (isPlaceholder) fonts.italic else fonts.regular
             val lines = wrapText(value, font, valueFontSize, valueColWidth)
@@ -399,6 +436,7 @@ private class PdfExportServiceJvm : PdfExportService {
         x: Float,
         y: Float,
         width: Float,
+        labels: WeekendPdfStrings,
     ) {
         val blockHeaderHeight = 28f
         val labelFontSize = 10f
@@ -418,7 +456,7 @@ private class PdfExportServiceJvm : PdfExportService {
         drawText(c, "${line.dateLabel} — ${line.hora}", x + 12f, y - 19f)
         var cursor = y - blockHeaderHeight
 
-        monthlyBlockRows(line).forEach { (label, valueAndPlaceholder) ->
+        monthlyBlockRows(line, labels).forEach { (label, valueAndPlaceholder) ->
             val (value, isPlaceholder) = valueAndPlaceholder
             val valueFont: PDFont = if (isPlaceholder) fonts.italic else fonts.regular
             val valueLines = wrapText(value, valueFont, valueFontSize, valueColWidth)
@@ -505,7 +543,7 @@ private class PdfExportServiceJvm : PdfExportService {
         data class RenderBlock(val header: String, val rows: List<RenderRow>, val height: Int)
 
         fun blockForLine(line: PdfMeetingLine): RenderBlock {
-            val rows = monthlyBlockRows(line).map { (label, vp) ->
+            val rows = monthlyBlockRows(line, data.labels).map { (label, vp) ->
                 val (value, isPlaceholder) = vp
                 val font = if (isPlaceholder) valueFontItalic else valueFont
                 RenderRow(label, wrapPng(value, font, valueColW), isPlaceholder)
@@ -536,22 +574,15 @@ private class PdfExportServiceJvm : PdfExportService {
         // Header
         var y = padding + titleFont.size
         g.color = ColorTitle
-        val iconStream = PdfExportServiceJvm::class.java.classLoader
-            .getResourceAsStream("icons/calendar.png")
-        val titleX = if (iconStream != null) {
-            val iconImg = iconStream.use { ImageIO.read(it) }
-            val iconSize = 72
-            g.drawImage(iconImg, padding, y - iconSize + 12, iconSize, iconSize, null)
-            padding + iconSize + 16
-        } else padding
+        drawPngHeaderIcon(g, "icons/conferencia.png", width, padding)
         g.font = titleFont
-        g.drawString(data.congregacao, titleX, y)
+        g.drawString(data.congregacao, padding, y)
 
         y += 30
         g.color = Color(30, 58, 95)
         g.font = subtitleFont
         y += subtitleFont.size
-        g.drawString("Programação de Fim de Semana", padding, y)
+        g.drawString(data.labels.tituloMensal, padding, y)
 
         y += 12 + monthFont.size
         g.color = ColorMuted
@@ -566,7 +597,7 @@ private class PdfExportServiceJvm : PdfExportService {
             g.fillRoundRect(blockX, y, cardWidth, 140, 24, 24)
             g.color = ColorMuted
             g.font = valueFontItalic
-            g.drawString("Nenhuma reunião configurada para este mês.", blockX + 32, y + 80)
+            g.drawString(data.labels.vazio, blockX + 32, y + 80)
         } else {
             blocks.forEach { block ->
                 val h = block.height
@@ -603,7 +634,7 @@ private class PdfExportServiceJvm : PdfExportService {
 
         g.color = ColorMuted
         g.font = footerFont
-        val footerText = "Gerado em ${currentTimestamp()}"
+        val footerText = data.labels.common.geradoEm(currentTimestamp())
         val fw = g.fontMetrics.stringWidth(footerText)
         g.drawString(footerText, width - padding - fw, height - padding)
 
@@ -644,22 +675,15 @@ private class PdfExportServiceJvm : PdfExportService {
 
         var y = padding + titleFont.size
         g.color = ColorTitle
-        val iconStream = PdfExportServiceJvm::class.java.classLoader
-            .getResourceAsStream("icons/calendar.png")
-        val titleX = if (iconStream != null) {
-            val iconImg = iconStream.use { ImageIO.read(it) }
-            val iconSize = 72
-            g.drawImage(iconImg, padding, y - iconSize + 12, iconSize, iconSize, null)
-            padding + iconSize + 16
-        } else padding
+        drawPngHeaderIcon(g, "icons/conferencia.png", width, padding)
         g.font = titleFont
-        g.drawString(data.congregacao, titleX, y)
+        g.drawString(data.congregacao, padding, y)
 
         y += 30
         g.color = Color(30, 58, 95)
         g.font = subtitleFont
         y += subtitleFont.size
-        g.drawString("Programação da Reunião", padding, y)
+        g.drawString(data.labels.tituloReuniao, padding, y)
 
         y += 12 + monthFont.size
         g.color = ColorMuted
@@ -682,11 +706,11 @@ private class PdfExportServiceJvm : PdfExportService {
         g.drawString("${data.dateLabel} — ${data.hora}", blockX + cardInnerPad, y + cardHeaderH - 26)
 
         val rows = listOf(
-            "Título" to ((data.tituloDiscurso ?: PLACEHOLDER_DISCURSO) to (data.tituloDiscurso == null)),
-            "Orador" to ((data.orador ?: PLACEHOLDER_TEXT) to (data.orador == null)),
-            "Presidente" to ((data.presidente ?: PLACEHOLDER_TEXT) to (data.presidente == null)),
-            "Dirigente do estudo" to ((data.dirigenteEstudo ?: PLACEHOLDER_TEXT) to (data.dirigenteEstudo == null)),
-            "Leitor" to ((data.leitor ?: PLACEHOLDER_TEXT) to (data.leitor == null)),
+            data.labels.titulo to ((data.tituloDiscurso ?: data.labels.common.discursoADefinir) to (data.tituloDiscurso == null)),
+            data.labels.orador to ((data.orador ?: data.labels.common.aDefinir) to (data.orador == null)),
+            data.labels.presidente to ((data.presidente ?: data.labels.common.aDefinir) to (data.presidente == null)),
+            data.labels.dirigente to ((data.dirigenteEstudo ?: data.labels.common.aDefinir) to (data.dirigenteEstudo == null)),
+            data.labels.leitor to ((data.leitor ?: data.labels.common.aDefinir) to (data.leitor == null)),
         )
 
         var rowY = y + cardHeaderH
@@ -703,7 +727,7 @@ private class PdfExportServiceJvm : PdfExportService {
 
         g.color = ColorMuted
         g.font = footerFont
-        val footerText = "Gerado em ${currentTimestamp()}"
+        val footerText = data.labels.common.geradoEm(currentTimestamp())
         val fw = g.fontMetrics.stringWidth(footerText)
         g.drawString(footerText, width - padding - fw, height - padding)
 
@@ -747,9 +771,9 @@ private class PdfExportServiceJvm : PdfExportService {
                 contentWidth = contentWidth,
                 fonts = fonts,
                 congregacao = data.congregacao,
-                title = "Escala de Limpeza",
+                title = data.labels.title,
                 subtitle = data.mesLabel,
-                iconResource = "icons/cleaning.png",
+                iconResource = "icons/limpeza.png",
             )
             y -= 4f
 
@@ -764,9 +788,9 @@ private class PdfExportServiceJvm : PdfExportService {
             c.setNonStrokingColor(ColorTitle)
             c.setFont(fonts.bold, 11f)
             val headerBaseline = y - cellPad - 9f
-            drawText(c, "Semana", xWeek + cellPad, headerBaseline)
-            drawText(c, "Reuniões", xMeetings + cellPad, headerBaseline)
-            drawText(c, "Grupo", xGroup + cellPad, headerBaseline)
+            drawText(c, data.labels.semana, xWeek + cellPad, headerBaseline)
+            drawText(c, data.labels.reunioes, xMeetings + cellPad, headerBaseline)
+            drawText(c, data.labels.grupo, xGroup + cellPad, headerBaseline)
             c.setStrokingColor(ColorBorder)
             c.setLineWidth(0.5f)
             val tableHeaderBottom = y - headerRowHeight
@@ -778,7 +802,7 @@ private class PdfExportServiceJvm : PdfExportService {
                 val rowBottom = y - rowHeight
                 c.setNonStrokingColor(ColorMuted)
                 c.setFont(fonts.italic, 11f)
-                drawText(c, "Nenhuma semana com reunião neste mês.", marginLeft + cellPad, y - cellPad - 9f)
+                drawText(c, data.labels.vazio, marginLeft + cellPad, y - cellPad - 9f)
                 c.setStrokingColor(ColorBorder)
                 c.setLineWidth(0.3f)
                 c.moveTo(marginLeft, rowBottom); c.lineTo(marginLeft + contentWidth, rowBottom); c.stroke()
@@ -788,7 +812,7 @@ private class PdfExportServiceJvm : PdfExportService {
                     val weekLines = wrapText(row.periodo, fonts.regular, 11f, colWeek - cellPad * 2f)
                     val meetLines = wrapText(row.diasReuniao, fonts.regular, 11f, colMeetings - cellPad * 2f)
                     val isPlaceholder = row.grupoResponsavel.isNullOrBlank()
-                    val groupText = row.grupoResponsavel?.takeIf { it.isNotBlank() } ?: PLACEHOLDER_TEXT
+                    val groupText = row.grupoResponsavel?.takeIf { it.isNotBlank() } ?: data.labels.common.aDefinir
                     val groupFont: PDFont = if (isPlaceholder) fonts.italic else fonts.regular
                     val groupLines = wrapText(groupText, groupFont, 11f, colGroup - cellPad * 2f)
                     val maxLines = maxOf(weekLines.size, meetLines.size, groupLines.size)
@@ -823,7 +847,7 @@ private class PdfExportServiceJvm : PdfExportService {
                 }
             }
 
-            val footerText = "Gerado em ${currentTimestamp()}"
+            val footerText = data.labels.common.geradoEm(currentTimestamp())
             c.setNonStrokingColor(ColorMuted)
             c.setFont(fonts.regular, 8f)
             val footerWidth = textWidth(footerText, fonts.regular, 8f)
@@ -872,22 +896,15 @@ private class PdfExportServiceJvm : PdfExportService {
 
         var y = padding + titleFont.size
         g.color = ColorTitle
-        val iconStream = PdfExportServiceJvm::class.java.classLoader
-            .getResourceAsStream("icons/cleaning.png")
-        val titleX = if (iconStream != null) {
-            val iconImg = iconStream.use { ImageIO.read(it) }
-            val iconSize = 72
-            g.drawImage(iconImg, padding, y - iconSize + 8, iconSize, iconSize, null)
-            padding + iconSize + 16
-        } else padding
+        drawPngHeaderIcon(g, "icons/limpeza.png", width, padding)
         g.font = titleFont
-        g.drawString(data.congregacao, titleX, y)
+        g.drawString(data.congregacao, padding, y)
 
         y += 36
         g.color = Color(30, 58, 95)
         g.font = subtitleFont
         y += subtitleFont.size
-        g.drawString("Escala de Limpeza", padding, y)
+        g.drawString(data.labels.title, padding, y)
 
         y += 12 + monthFont.size
         g.color = ColorMuted
@@ -903,7 +920,7 @@ private class PdfExportServiceJvm : PdfExportService {
             g.fillRoundRect(cardX, y, cardWidth, 140, 24, 24)
             g.color = ColorMuted
             g.font = cardValueItalic
-            g.drawString("Nenhuma semana com reunião neste mês.", cardX + 32, y + 80)
+            g.drawString(data.labels.vazio, cardX + 32, y + 80)
             y += 140
         } else {
             cards.forEach { row ->
@@ -922,7 +939,7 @@ private class PdfExportServiceJvm : PdfExportService {
                 ty += cardLineGap + cardLabelFont.size
                 g.color = ColorMuted
                 g.font = cardLabelFont
-                g.drawString("Dias de reunião", cardX + cardInnerPad, ty)
+                g.drawString(data.labels.diasReuniao, cardX + cardInnerPad, ty)
                 ty += 6 + cardValueFont.size
                 g.color = ColorTitle
                 g.font = cardValueFont
@@ -931,12 +948,12 @@ private class PdfExportServiceJvm : PdfExportService {
                 ty += cardLineGap + cardLabelFont.size
                 g.color = ColorMuted
                 g.font = cardLabelFont
-                g.drawString("Grupo responsável", cardX + cardInnerPad, ty)
+                g.drawString(data.labels.grupoResponsavel, cardX + cardInnerPad, ty)
                 ty += 6 + cardValueFont.size
                 val isPlaceholder = row.grupoResponsavel.isNullOrBlank()
                 g.color = if (isPlaceholder) ColorMuted else ColorTitle
                 g.font = if (isPlaceholder) cardValueItalic else cardValueFont
-                g.drawString(row.grupoResponsavel?.takeIf { it.isNotBlank() } ?: PLACEHOLDER_TEXT, cardX + cardInnerPad, ty)
+                g.drawString(row.grupoResponsavel?.takeIf { it.isNotBlank() } ?: data.labels.common.aDefinir, cardX + cardInnerPad, ty)
 
                 y = cardBottom + cardGap
             }
@@ -944,7 +961,7 @@ private class PdfExportServiceJvm : PdfExportService {
 
         g.color = ColorMuted
         g.font = footerFont
-        val footerText = "Gerado em ${currentTimestamp()}"
+        val footerText = data.labels.common.geradoEm(currentTimestamp())
         val fw = g.fontMetrics.stringWidth(footerText)
         g.drawString(footerText, width - padding - fw, height - padding)
 
@@ -986,7 +1003,7 @@ private class PdfExportServiceJvm : PdfExportService {
                     c.setLineDashPattern(floatArrayOf(), 0f)
                 }
                 pair.forEachIndexed { idx, wk ->
-                    drawMidweekWeek(c, fonts, wk, mLeft + idx * (colW + gap), colTop, colW)
+                    drawMidweekWeek(c, fonts, wk, mLeft + idx * (colW + gap), colTop, colW, data.labels)
                 }
             }
         }
@@ -1008,12 +1025,12 @@ private class PdfExportServiceJvm : PdfExportService {
         val top = pageH - 40f
         c.setNonStrokingColor(ColorMaroon)
         c.setFont(fonts.bold, 23f)
-        drawText(c, "Reunión de entre semana", mLeft, top - 20f)
+        drawText(c, data.labels.headerTitle, mLeft, top - 20f)
         c.setFont(fonts.regular, 15f)
-        drawText(c, "Vida y Ministerio Cristianos", mLeft, top - 40f)
+        drawText(c, data.labels.headerSubtitle, mLeft, top - 40f)
         c.setNonStrokingColor(ColorMuted)
         c.setFont(fonts.bold, 8f)
-        drawText(c, "GUÍA DE ACTIVIDADES PARA LA REUNIÓN", mLeft, top - 54f)
+        drawText(c, data.labels.headerGuide, mLeft, top - 54f)
 
         // Caixa cinza com o nome da congregacao
         val boxW = 175f
@@ -1041,6 +1058,7 @@ private class PdfExportServiceJvm : PdfExportService {
         x: Float,
         yTop: Float,
         colW: Float,
+        labels: MidweekPdfStrings,
     ) {
         var y = yTop
 
@@ -1055,26 +1073,26 @@ private class PdfExportServiceJvm : PdfExportService {
         drawText(c, fitText(band, fonts.bold, 8.5f, colW - 12f), x + 7f, y - bandH + 6.5f)
         y -= bandH + 12f
 
-        y = drawLabelValue(c, fonts, "Presidente", wk.presidente, x, y, colW)
-        y = drawLabelValue(c, fonts, "Oración inicial", wk.oracaoInicial, x, y, colW)
+        y = drawLabelValue(c, fonts, labels.presidente, wk.presidente, x, y, colW)
+        y = drawLabelValue(c, fonts, labels.oracaoInicial, wk.oracaoInicial, x, y, colW)
         y -= 8f
 
-        y = drawSectionBar(c, fonts, ColorTeal, "TESOROS", "DE LA BIBLIA", wk.canticoInicial, x, y, colW)
-        y = drawPart(c, fonts, wk.tesouros, x, y, colW)
-        y = drawPart(c, fonts, wk.joias, x, y, colW)
-        y = drawPart(c, fonts, wk.leituraBiblia, x, y, colW)
+        y = drawSectionBar(c, fonts, ColorTeal, labels.tesouros1, labels.tesouros2, wk.canticoInicial, labels.cancion, x, y, colW)
+        y = drawPart(c, fonts, wk.tesouros, labels.mins, x, y, colW)
+        y = drawPart(c, fonts, wk.joias, labels.mins, x, y, colW)
+        y = drawPart(c, fonts, wk.leituraBiblia, labels.mins, x, y, colW)
         y -= 8f
 
-        y = drawSectionBar(c, fonts, ColorGold, "SEAMOS", "MEJORES MAESTROS", null, x, y, colW)
-        wk.ministerio.forEach { y = drawPart(c, fonts, it, x, y, colW) }
+        y = drawSectionBar(c, fonts, ColorGold, labels.seamos1, labels.seamos2, null, labels.cancion, x, y, colW)
+        wk.ministerio.forEach { y = drawPart(c, fonts, it, labels.mins, x, y, colW) }
         y -= 8f
 
-        y = drawSectionBar(c, fonts, ColorMaroon, "NUESTRA", "VIDA CRISTIANA", wk.canticoMeio, x, y, colW)
-        wk.vida.forEach { y = drawPart(c, fonts, it, x, y, colW) }
-        y = drawStudyPart(c, fonts, wk.estudo, x, y, colW)
+        y = drawSectionBar(c, fonts, ColorMaroon, labels.vida1, labels.vida2, wk.canticoMeio, labels.cancion, x, y, colW)
+        wk.vida.forEach { y = drawPart(c, fonts, it, labels.mins, x, y, colW) }
+        y = drawStudyPart(c, fonts, wk.estudo, labels, x, y, colW)
         y -= 10f
 
-        val concl = "Palabras de conclusión y canción ${wk.canticoFinal ?: "___"}"
+        val concl = "${labels.conclusion} ${wk.canticoFinal ?: "___"}"
         c.setNonStrokingColor(ColorMaroon)
         c.setFont(fonts.bold, 8.5f)
         drawCentered(c, concl, x, y, colW, fonts.bold, 8.5f)
@@ -1082,7 +1100,7 @@ private class PdfExportServiceJvm : PdfExportService {
         wk.oracaoFinal?.takeIf { it.isNotBlank() }?.let {
             c.setNonStrokingColor(ColorInk)
             c.setFont(fonts.bold, 8.5f)
-            drawCentered(c, "Oración conclusión: $it", x, y, colW, fonts.bold, 8.5f)
+            drawCentered(c, "${labels.oracaoFinal}: $it", x, y, colW, fonts.bold, 8.5f)
         }
     }
 
@@ -1112,6 +1130,7 @@ private class PdfExportServiceJvm : PdfExportService {
         line1: String,
         line2: String,
         cancion: String?,
+        cancionLabel: String,
         x: Float,
         y: Float,
         colW: Float,
@@ -1127,7 +1146,7 @@ private class PdfExportServiceJvm : PdfExportService {
         drawText(c, line2, tx, y - 17f)
         if (cancion != null && cancion.isNotBlank()) {
             c.setFont(fonts.bold, 8.5f)
-            val ct = "Canción $cancion"
+            val ct = "$cancionLabel $cancion"
             drawText(c, ct, x + colW - textWidth(ct, fonts.bold, 8.5f), y - 17f)
         }
         val underlineY = y - 23f
@@ -1143,6 +1162,7 @@ private class PdfExportServiceJvm : PdfExportService {
         c: PDPageContentStream,
         fonts: PdfFonts,
         part: MidweekPartPdf,
+        mins: String,
         x: Float,
         y: Float,
         colW: Float,
@@ -1157,7 +1177,7 @@ private class PdfExportServiceJvm : PdfExportService {
         val lastLineW = textWidth(lines.last(), fonts.bold, titleSize)
         val lastY = y - 9f - (lines.size - 1) * lineH
         part.minutos?.let {
-            val ms = " ($it mins.)"
+            val ms = " ($it $mins)"
             if (lastLineW + textWidth(ms, fonts.regular, 7.5f) <= colW) {
                 c.setNonStrokingColor(ColorMuted)
                 c.setFont(fonts.regular, 7.5f)
@@ -1184,6 +1204,7 @@ private class PdfExportServiceJvm : PdfExportService {
         c: PDPageContentStream,
         fonts: PdfFonts,
         part: MidweekPartPdf,
+        labels: MidweekPdfStrings,
         x: Float,
         y: Float,
         colW: Float,
@@ -1198,7 +1219,7 @@ private class PdfExportServiceJvm : PdfExportService {
         val lastLineW = textWidth(lines.last(), fonts.bold, titleSize)
         val lastY = y - 9f - (lines.size - 1) * lineH
         part.minutos?.let {
-            val ms = " ($it mins.)"
+            val ms = " ($it ${labels.mins})"
             if (lastLineW + textWidth(ms, fonts.regular, 7.5f) <= colW) {
                 c.setNonStrokingColor(ColorMuted)
                 c.setFont(fonts.regular, 7.5f)
@@ -1216,8 +1237,8 @@ private class PdfExportServiceJvm : PdfExportService {
         c.fill()
         c.setNonStrokingColor(ColorMaroon)
         c.setFont(fonts.bold, 8f)
-        drawCentered(c, "Conductor", tx, ty - rowH + 4.5f, half, fonts.bold, 8f)
-        drawCentered(c, "Lector", tx + half, ty - rowH + 4.5f, half, fonts.bold, 8f)
+        drawCentered(c, labels.conductor, tx, ty - rowH + 4.5f, half, fonts.bold, 8f)
+        drawCentered(c, labels.lector, tx + half, ty - rowH + 4.5f, half, fonts.bold, 8f)
         ty -= rowH
         c.setStrokingColor(ColorBorder)
         c.setLineWidth(0.7f)
@@ -1256,7 +1277,7 @@ private class PdfExportServiceJvm : PdfExportService {
             PDPageContentStream(doc, page).use { c ->
                 c.setNonStrokingColor(ColorMuted)
                 c.setFont(fonts.italic, 12f)
-                drawText(c, "Nenhuma designação de estudante no mês.", mLeft, pageH - 80f)
+                drawText(c, data.labels.vazio, mLeft, pageH - 80f)
             }
         }
         slips.chunked(perPage).forEach { pageSlips ->
@@ -1268,7 +1289,7 @@ private class PdfExportServiceJvm : PdfExportService {
                     val row = i / cols
                     val x = mLeft + col * (slipW + gap)
                     val yTop = pageH - mTop - row * (slipH + gap)
-                    drawAssignmentSlip(c, fonts, slip, x, yTop, slipW, slipH)
+                    drawAssignmentSlip(c, fonts, slip, data.labels, x, yTop, slipW, slipH)
                 }
             }
         }
@@ -1281,6 +1302,7 @@ private class PdfExportServiceJvm : PdfExportService {
         c: PDPageContentStream,
         fonts: PdfFonts,
         slip: MidweekAssignmentPdf,
+        labels: AssignmentPdfStrings,
         x: Float,
         yTop: Float,
         w: Float,
@@ -1295,9 +1317,9 @@ private class PdfExportServiceJvm : PdfExportService {
         var y = yTop - 18f
         c.setNonStrokingColor(ColorMaroon)
         c.setFont(fonts.bold, 9.5f)
-        drawCentered(c, "ASIGNACIÓN PARA LA REUNIÓN", x, y, w, fonts.bold, 9.5f)
+        drawCentered(c, labels.title1, x, y, w, fonts.bold, 9.5f)
         y -= 11f
-        drawCentered(c, "VIDA Y MINISTERIO CRISTIANOS", x, y, w, fonts.bold, 9.5f)
+        drawCentered(c, labels.title2, x, y, w, fonts.bold, 9.5f)
         y -= 20f
 
         c.setNonStrokingColor(ColorInk)
@@ -1315,24 +1337,23 @@ private class PdfExportServiceJvm : PdfExportService {
             c.stroke()
             y -= 17f
         }
-        field("Nombre: ", slip.nome)
-        field("Ayudante: ", slip.ajudante)
-        field("Fecha: ", slip.data)
-        field("Intervención núm.: ", slip.numeroParte)
+        field(labels.nombre, slip.nome)
+        field(labels.ayudante, slip.ajudante)
+        field(labels.fecha, slip.data)
+        field(labels.intervencion, slip.numeroParte)
 
         c.setNonStrokingColor(ColorInk)
         c.setFont(fonts.bold, 9f)
-        drawText(c, "Se presentará en:", x + pad, y)
+        drawText(c, labels.presentaraEn, x + pad, y)
         y -= 14f
-        drawCheck(c, fonts, "Sala principal", !slip.salaAuxiliar, x + pad + 4f, y)
+        drawCheck(c, fonts, labels.salaPrincipal, !slip.salaAuxiliar, x + pad + 4f, y)
         y -= 13f
-        drawCheck(c, fonts, "Sala auxiliar", slip.salaAuxiliar, x + pad + 4f, y)
+        drawCheck(c, fonts, labels.salaAuxiliar, slip.salaAuxiliar, x + pad + 4f, y)
         y -= 16f
 
         c.setNonStrokingColor(ColorMuted)
         c.setFont(fonts.italic, 6.8f)
-        val nota = "Nota al estudiante: En la Guía de actividades encontrará la información " +
-            "que necesita para su intervención."
+        val nota = labels.nota
         wrapText(nota, fonts.italic, 6.8f, w - 2 * pad).take(3).forEach {
             drawText(c, it, x + pad, y)
             y -= 8.5f
@@ -1386,6 +1407,134 @@ private class PdfExportServiceJvm : PdfExportService {
         return "$t…"
     }
 
+    // ─── Audio/video e acomodadores ──────────────────────────────────────────
+
+    private fun writeAvSchedulePdf(path: String, data: AvSchedulePdfData) {
+        val document = PDDocument()
+        val fonts = PdfFonts.load(document)
+        val pageSize = PDPage().mediaBox
+        val pageWidth = pageSize.width
+        val pageHeight = pageSize.height
+        val marginLeft = 45f
+        val marginRight = 45f
+        val marginBottom = 55f
+        val contentWidth = pageWidth - marginLeft - marginRight
+
+        // Quatro colunas: audio/video, plataforma, microfones, acomodadores.
+        val colX = listOf(0f, 0.29f, 0.50f, 0.75f).map { marginLeft + 12f + contentWidth * it }
+        val colWidth = listOf(0.27f, 0.19f, 0.23f, 0.25f).map { contentWidth * it }
+
+        val dateSize = 10f
+        val headerSize = 8.5f
+        val nameSize = 9f
+        val lineHeight = 13.5f
+        val dateToHeaderGap = 16f
+        val headerToNamesGap = 13.5f
+        val blockGap = 14f
+
+        val pages = mutableListOf<PDPage>()
+        val streams = mutableListOf<PDPageContentStream>()
+
+        fun startPage(isFirst: Boolean): Float {
+            val page = PDPage()
+            document.addPage(page)
+            pages.add(page)
+            val c = PDPageContentStream(document, page)
+            streams.add(c)
+            var y = pageHeight - 55f
+            if (isFirst) {
+                c.setNonStrokingColor(ColorTitle)
+                c.setFont(fonts.bold, 12f)
+                val left = fitText(data.congregacao, fonts.bold, 12f, contentWidth * 0.55f)
+                drawText(c, left, marginLeft, y)
+                val right = data.labels.title
+                val rightWidth = textWidth(right, fonts.bold, 12f)
+                drawText(c, right, marginLeft + contentWidth - rightWidth, y)
+                y -= 8f
+                c.setStrokingColor(ColorTitle)
+                c.setLineWidth(1f)
+                c.moveTo(marginLeft, y); c.lineTo(marginLeft + contentWidth, y); c.stroke()
+                y -= 22f
+            }
+            return y
+        }
+
+        /** Linhas de nome de cada coluna, ja com o sufixo (Audio)/(Video). */
+        fun columnsFor(line: AvScheduleLine): List<List<String>> = listOf(
+            listOfNotNull(
+                line.audio?.let { "$it  (${data.labels.audioTag})" },
+                line.video?.let { "$it  (${data.labels.videoTag})" },
+            ),
+            line.plataforma,
+            line.microfones,
+            line.acomodadores,
+        )
+
+        var y = startPage(isFirst = true)
+
+        if (data.reunioes.isEmpty()) {
+            val c = streams.last()
+            c.setNonStrokingColor(ColorMuted)
+            c.setFont(fonts.italic, 11f)
+            drawText(c, data.labels.vazio, marginLeft, y)
+        }
+
+        data.reunioes.forEach { line ->
+            val columns = columnsFor(line)
+            val maxNameLines = columns.maxOfOrNull { it.size } ?: 0
+            val blockHeight = dateToHeaderGap + headerToNamesGap +
+                maxNameLines * lineHeight + blockGap
+
+            if (y - blockHeight < marginBottom) {
+                y = startPage(isFirst = false)
+            }
+            val c = streams.last()
+
+            c.setNonStrokingColor(ColorTitle)
+            c.setFont(fonts.bold, dateSize)
+            drawText(c, "${line.dataLabel} ${line.tipoLabel}", marginLeft, y)
+            y -= dateToHeaderGap
+
+            val headers = listOf(
+                data.labels.audioVideo,
+                data.labels.plataforma,
+                data.labels.microfones,
+                data.labels.acomodadores,
+            )
+            c.setFont(fonts.bold, headerSize)
+            headers.forEachIndexed { i, header ->
+                drawText(c, fitText(header, fonts.bold, headerSize, colWidth[i]), colX[i], y)
+            }
+            y -= headerToNamesGap
+
+            c.setFont(fonts.regular, nameSize)
+            columns.forEachIndexed { i, names ->
+                names.forEachIndexed { row, name ->
+                    drawText(
+                        c,
+                        fitText(name, fonts.regular, nameSize, colWidth[i]),
+                        colX[i],
+                        y - row * lineHeight,
+                    )
+                }
+            }
+            y -= maxNameLines * lineHeight + blockGap
+        }
+
+        val footerText = currentTimestamp()
+        streams.last().let { c ->
+            c.setNonStrokingColor(ColorMuted)
+            c.setFont(fonts.regular, 8f)
+            val footerWidth = textWidth(footerText, fonts.regular, 8f)
+            drawText(c, footerText, marginLeft + contentWidth - footerWidth, marginBottom - 15f)
+        }
+
+        streams.forEach { it.close() }
+        document.save(path)
+        document.close()
+        openInDesktop(File(path))
+    }
+
     // ─── Common helpers ──────────────────────────────────────────────────────
 
     private fun drawText(c: PDPageContentStream, text: String, x: Float, y: Float) {
@@ -1431,12 +1580,12 @@ private class PdfExportServiceJvm : PdfExportService {
         }
     }
 
-    private fun chooseSavePath(defaultName: String): String? {
+    private fun chooseSavePath(defaultName: String, title: String = "Salvar como"): String? {
         return runOnEdt {
             val owner = KeyboardFocusManager
                 .getCurrentKeyboardFocusManager()
                 .activeWindow as? Frame
-            val dialog = FileDialog(owner, "Salvar como", FileDialog.SAVE)
+            val dialog = FileDialog(owner, title, FileDialog.SAVE)
             dialog.file = defaultName
             dialog.isVisible = true
             val dir = dialog.directory ?: return@runOnEdt null

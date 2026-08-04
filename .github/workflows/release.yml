@@ -1,0 +1,125 @@
+name: Release
+
+# A versao vem da mensagem do commit: "Fecha versao 1.1.4".
+# Push em master sem essa mensagem nao gera release nenhum.
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: write
+
+jobs:
+  version:
+    name: Detectar versao
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.parse.outputs.version }}
+      release: ${{ steps.parse.outputs.release }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ler versao da mensagem do commit
+        id: parse
+        run: |
+          subject="$(git log -1 --pretty=%s)"
+          echo "Commit: $subject"
+          version="$(printf '%s' "$subject" |
+            grep -oiP 'fecha\s+vers[ãa]o\s+v?\K[0-9]+\.[0-9]+\.[0-9]+' || true)"
+          if [ -z "$version" ]; then
+            echo "Nao e um commit de fechamento de versao — nada a publicar."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Versao detectada: $version"
+            echo "version=$version" >> "$GITHUB_OUTPUT"
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Falha aqui poupa dois builds: sem secao no CHANGELOG nao ha o que publicar.
+      - name: Conferir CHANGELOG e tag
+        if: steps.parse.outputs.release == 'true'
+        run: |
+          python3 .github/scripts/changelog_section.py "${{ steps.parse.outputs.version }}" > /dev/null
+          if git rev-parse "v${{ steps.parse.outputs.version }}" >/dev/null 2>&1; then
+            echo "::error::A tag v${{ steps.parse.outputs.version }} ja existe."
+            exit 1
+          fi
+
+  windows:
+    name: Instalador Windows
+    needs: version
+    if: needs.version.outputs.release == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      # O jpackage gera MSI via WiX 3.x (candle.exe/light.exe). A imagem do runner
+      # costuma ja traze-lo; o passo e idempotente e garante o PATH.
+      - name: Garantir WiX Toolset
+        run: |
+          choco install wixtoolset --no-progress -y
+          echo "C:\Program Files (x86)\WiX Toolset v3.11\bin" >> $env:GITHUB_PATH
+
+      - name: Empacotar MSI
+        run: .\gradlew.bat --no-daemon packageMsiWithPrompt "-PappVersion=${{ needs.version.outputs.version }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: msi
+          path: composeApp/build/compose/binaries/main/msi-prompt/*.msi
+          if-no-files-found: error
+
+  linux:
+    name: Pacote Linux
+    needs: version
+    if: needs.version.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Dependencias do jpackage
+        run: sudo apt-get update && sudo apt-get install -y fakeroot binutils
+
+      - name: Empacotar deb
+        run: ./gradlew --no-daemon packageDeb -PappVersion=${{ needs.version.outputs.version }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deb
+          path: composeApp/build/compose/binaries/main/deb/*.deb
+          if-no-files-found: error
+
+  release:
+    name: Publicar release
+    needs: [version, windows, linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Extrair notas do CHANGELOG
+        run: python3 .github/scripts/changelog_section.py "${{ needs.version.outputs.version }}" > release-notes.md
+
+      - name: Criar tag e release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${{ needs.version.outputs.version }}"
+          git tag "v$version"
+          git push origin "v$version"
+          gh release create "v$version" \
+            --title "v$version" \
+            --notes-file release-notes.md \
+            artifacts/msi/*.msi artifacts/deb/*.deb

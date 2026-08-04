@@ -5,17 +5,18 @@ import androidx.lifecycle.viewModelScope
 import com.example.sonntag.data.repos.MembersRepository
 import com.example.sonntag.data.repos.MeetingsRepository
 import com.example.sonntag.data.repos.SettingsRepository
+import com.example.sonntag.data.repos.TalkOutlinesRepository
 import com.example.sonntag.data.repos.WeekendProgramsRepository
 import com.example.sonntag.data.sqldelight.Members
+import com.example.sonntag.domain.models.TalkOutline
 import com.example.sonntag.domain.usecases.MeetingGenerator
+import com.example.sonntag.imports.S34ImportService
 import com.example.sonntag.pdf.MeetingProgramPdfData
 import com.example.sonntag.pdf.MonthlyProgramPdfData
 import com.example.sonntag.pdf.PdfExportService
 import com.example.sonntag.pdf.PdfMeetingLine
-import com.example.sonntag.ui.util.longDateLabel
-import com.example.sonntag.ui.util.longDateLabelWithYear
-import com.example.sonntag.ui.util.monthNamePt
-import com.example.sonntag.ui.util.monthNamePtCapitalized
+import com.example.sonntag.pdf.weekendPdfStrings
+import com.example.sonntag.ui.util.slugMonth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -58,6 +59,9 @@ data class WeekendProgramsUiState(
     val dirigenteId: Long? = null,
     val leitorId: Long? = null,
     val isReadOnly: Boolean = false,
+    val talkOutlines: List<TalkOutline> = emptyList(),
+    val importInProgress: Boolean = false,
+    val importResult: String? = null,
 )
 
 class WeekendProgramsViewModel(
@@ -67,6 +71,9 @@ class WeekendProgramsViewModel(
     private val settingsRepository: SettingsRepository,
     private val pdfExportService: PdfExportService,
     private val meetingGenerator: MeetingGenerator,
+    private val localeController: com.example.sonntag.i18n.LocaleController,
+    private val talkOutlinesRepository: TalkOutlinesRepository,
+    private val s34ImportService: S34ImportService,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(WeekendProgramsUiState())
@@ -120,8 +127,8 @@ class WeekendProgramsViewModel(
                     time = m.hora,
                     year = date.year,
                     month = date.monthNumber,
-                    dateLabelShort = longDateLabel(date),
-                    dateLabelLong = longDateLabelWithYear(date),
+                    dateLabelShort = localeController.translator.longDate(date),
+                    dateLabelLong = localeController.translator.longDateWithYear(date),
                     titleSummary = titulo,
                     isPast = date < today,
                 )
@@ -140,6 +147,51 @@ class WeekendProgramsViewModel(
                 selectedMeetingId = initialSelected,
             )
             initialSelected?.let { selectMeeting(it) }
+            loadTalkOutlines()
+        }
+    }
+
+    private fun loadTalkOutlines() {
+        _uiState.value = _uiState.value.copy(talkOutlines = talkOutlinesRepository.getAllOnce())
+    }
+
+    fun dismissImportResult() {
+        _uiState.value = _uiState.value.copy(importResult = null)
+    }
+
+    /** Importa os titulos dos bosquejos de um arquivo S-34 (.jwpub). */
+    fun importS34() {
+        if (_uiState.value.importInProgress) return
+        viewModelScope.launch(Dispatchers.IO) {
+            _uiState.value = _uiState.value.copy(importInProgress = true, importResult = null)
+            try {
+                val t = localeController.translator
+                val outlines = s34ImportService.pickTalkOutlines(
+                    t("Selecionar S-34 (.jwpub)"),
+                    t("Publicações JWPUB"),
+                )
+                if (outlines == null) {
+                    _uiState.value = _uiState.value.copy(importInProgress = false)
+                    return@launch
+                }
+                if (outlines.isNotEmpty()) {
+                    talkOutlinesRepository.replaceAll(outlines)
+                    loadTalkOutlines()
+                }
+                _uiState.value = _uiState.value.copy(
+                    importInProgress = false,
+                    importResult = if (outlines.isEmpty()) {
+                        t("Nenhum bosquejo encontrado no arquivo. Verifique se é o S-34 (.jwpub) correto.")
+                    } else {
+                        t("Importados {0} bosquejos. Agora eles aparecem na lista do título do discurso.", outlines.size)
+                    },
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    importInProgress = false,
+                    importResult = localeController.translator("Erro ao importar: {0}", e.message),
+                )
+            }
         }
     }
 
@@ -280,11 +332,13 @@ class WeekendProgramsViewModel(
         if (meeting.tipo != "WEEKEND") return null
         val membersMap = _uiState.value.members.associateBy { it.id }
         val program = weekendProgramsRepository.getByMeetingIdOnce(selectedId)
-        val congregation = settingsRepository.getSettingsOnce()?.nome ?: "Congregação"
+        val labels = weekendPdfStrings(localeController.current)
+        val congregation = settingsRepository.getSettingsOnce()?.nome?.takeIf { it.isNotBlank() }
+            ?: labels.common.congregacao
         val date = LocalDate.parse(meeting.data_)
         return MeetingProgramPdfData(
             congregacao = congregation,
-            dateLabel = longDateLabelWithYear(date),
+            dateLabel = localeController.translator.longDateWithYear(date),
             hora = meeting.hora,
             fileSlug = "programacao-reuniao-${date.year}-${date.monthNumber.toString().padStart(2, '0')}-${date.dayOfMonth.toString().padStart(2, '0')}",
             tituloDiscurso = program?.titulo_discurso?.takeIf { it.isNotBlank() },
@@ -292,6 +346,7 @@ class WeekendProgramsViewModel(
             presidente = memberNameOrNull(program?.presidente_id, membersMap),
             dirigenteEstudo = memberNameOrNull(program?.dirigente_id, membersMap),
             leitor = memberNameOrNull(program?.leitor_id, membersMap),
+            labels = labels,
         )
     }
 
@@ -313,7 +368,7 @@ class WeekendProgramsViewModel(
             val program = weekendProgramsRepository.getByMeetingIdOnce(meeting.id)
             val date = LocalDate.parse(meeting.data_)
             PdfMeetingLine(
-                dateLabel = longDateLabelWithYear(date),
+                dateLabel = localeController.translator.longDateWithYear(date),
                 hora = meeting.hora,
                 tituloDiscurso = program?.titulo_discurso?.takeIf { it.isNotBlank() },
                 orador = oradorNameOrNull(program, membersMap),
@@ -323,14 +378,17 @@ class WeekendProgramsViewModel(
             )
         }
 
-        val congregation = settingsRepository.getSettingsOnce()?.nome ?: "Congregação"
-        val monthLabel = "${monthNamePtCapitalized(s.visibleMonth)} de ${s.visibleYear}"
-        val slug = "programacao-${monthNamePt(s.visibleMonth)}-${s.visibleYear}"
+        val labels = weekendPdfStrings(localeController.current)
+        val congregation = settingsRepository.getSettingsOnce()?.nome?.takeIf { it.isNotBlank() }
+            ?: labels.common.congregacao
+        val monthLabel = localeController.translator.monthYearLabel(s.visibleMonth, s.visibleYear)
+        val slug = "programacao-${slugMonth(localeController.translator, s.visibleMonth)}-${s.visibleYear}"
         return MonthlyProgramPdfData(
             congregacao = congregation,
             mesLabel = monthLabel,
             fileSlug = slug,
             reunioes = lines,
+            labels = labels,
         )
     }
 

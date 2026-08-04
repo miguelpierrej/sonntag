@@ -1,5 +1,8 @@
 package com.example.sonntag.ui.screens.midweek
 
+import com.example.sonntag.i18n.tr
+import com.example.sonntag.i18n.LocalT
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -79,13 +82,13 @@ fun MidweekProgramsScreenContent() {
         state.visibleMonth == state.today.monthNumber
 
     ScreenScaffold(
-        title = "Programações de meio de semana",
-        subtitle = "Nossa Vida e Ministério Cristão (S-140)",
+        title = tr("Programações de meio de semana"),
+        subtitle = tr("Nossa Vida e Ministério Cristão (S-140)"),
         leadingIcon = Icons.AutoMirrored.Outlined.MenuBook,
         actions = {
             if (!isViewingCurrentMonth) {
                 TextButton(onClick = viewModel::showCurrentMonth) {
-                    Text("Hoje")
+                    Text(tr("Hoje"))
                 }
             }
             OutlinedButton(
@@ -102,7 +105,7 @@ fun MidweekProgramsScreenContent() {
                     )
                 }
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(if (state.importInProgress) "Importando..." else "Importar apostila")
+                Text(if (state.importInProgress) tr("Importando...") else tr("Importar apostila"))
             }
             ExportMenu(
                 onPdf = viewModel::exportProgramaPdf,
@@ -114,9 +117,9 @@ fun MidweekProgramsScreenContent() {
             AlertDialog(
                 onDismissRequest = viewModel::dismissImportResult,
                 confirmButton = {
-                    TextButton(onClick = viewModel::dismissImportResult) { Text("OK") }
+                    TextButton(onClick = viewModel::dismissImportResult) { Text(tr("OK")) }
                 },
-                title = { Text("Importar apostila") },
+                title = { Text(tr("Importar apostila")) },
                 text = { Text(message) },
             )
         }
@@ -143,8 +146,7 @@ fun MidweekProgramsScreenContent() {
                 Spacer(modifier = Modifier.height(12.dp))
                 if (visibleMeetings.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(
-                            "Nenhuma reunião neste mês",
+                        Text(tr("Nenhuma reunião neste mês"),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -172,8 +174,8 @@ fun MidweekProgramsScreenContent() {
                     selected == null || !selectedIsInVisibleMonth -> {
                         EmptyState(
                             icon = Icons.AutoMirrored.Outlined.MenuBook,
-                            title = "Selecione uma reunião para editar",
-                            description = "Escolha uma reunião na lista ao lado para preencher a programação de meio de semana.",
+                            title = tr("Selecione uma reunião para editar"),
+                            description = tr("Escolha uma reunião na lista ao lado para preencher a programação de meio de semana."),
                         )
                     }
                     else -> {
@@ -211,7 +213,7 @@ private fun MeetingListItem(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = item.dateLabelShort,
+                text = LocalT.current.longDate(item.date),
                 style = MaterialTheme.typography.titleMedium,
                 color = titleColor.copy(alpha = alphaMod),
                 modifier = Modifier.weight(1f),
@@ -220,12 +222,12 @@ private fun MeetingListItem(
             )
             if (item.isPast) {
                 Spacer(modifier = Modifier.width(8.dp))
-                Badge(text = "Realizada")
+                Badge(text = tr("Realizada"))
             }
         }
         Spacer(modifier = Modifier.height(2.dp))
         val secondary = if (item.summary.isNullOrBlank()) {
-            "${item.time} — Sem programação"
+            "${item.time} — ${tr("Sem programação")}"
         } else {
             "${item.time} — ${item.summary}"
         }
@@ -259,32 +261,32 @@ private fun ProgramEditor(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = item.dateLabelLong,
+                text = LocalT.current.longDateWithYear(item.date),
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f),
             )
-            if (isReadOnly) Badge(text = "Realizada")
+            if (isReadOnly) Badge(text = tr("Realizada"))
         }
         Spacer(modifier = Modifier.height(2.dp))
         Text(
-            text = "Reunião de meio de semana às ${item.time}",
+            text = tr("Reunião de meio de semana às {0}", item.time),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(modifier = Modifier.height(16.dp))
 
         // Cabecalho
-        SectionCard(title = "Cabeçalho") {
+        SectionCard(title = tr("Cabeçalho")) {
             FormTextField(
-                label = "Leitura semanal da Bíblia",
+                label = tr("Leitura semanal da Bíblia"),
                 value = form.leituraSemanal.orEmpty(),
                 enabled = enabled,
                 onValueChange = { v -> onUpdate { it.copy(leituraSemanal = v) } },
             )
             Spacer(modifier = Modifier.height(12.dp))
             MemberField(
-                label = "Presidente",
+                label = tr("Presidente"),
                 members = members,
                 selectedId = form.presidenteId,
                 enabled = enabled,
@@ -292,7 +294,7 @@ private fun ProgramEditor(
             )
             Spacer(modifier = Modifier.height(12.dp))
             MemberField(
-                label = "Conselheiro da sala auxiliar",
+                label = tr("Conselheiro da sala auxiliar"),
                 members = members,
                 selectedId = form.conselheiroId,
                 enabled = enabled,
@@ -301,14 +303,14 @@ private fun ProgramEditor(
             Spacer(modifier = Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 FormTextField(
-                    label = "Cântico inicial",
+                    label = tr("Cântico inicial"),
                     value = form.canticoInicial.orEmpty(),
                     enabled = enabled,
                     onValueChange = { v -> onUpdate { it.copy(canticoInicial = v) } },
                     modifier = Modifier.width(140.dp),
                 )
                 MemberField(
-                    label = "Oração inicial",
+                    label = tr("Oração inicial"),
                     members = members,
                     selectedId = form.oracaoInicialId,
                     enabled = enabled,
@@ -319,16 +321,16 @@ private fun ProgramEditor(
         }
 
         // Tesouros da Palavra de Deus
-        SectionCard(title = "Tesouros da Palavra de Deus") {
+        SectionCard(title = tr("Tesouros da Palavra de Deus")) {
             FormTextField(
-                label = "Discurso — título (10 min)",
+                label = tr("Discurso — título (10 min)"),
                 value = form.tesourosTitulo.orEmpty(),
                 enabled = enabled,
                 onValueChange = { v -> onUpdate { it.copy(tesourosTitulo = v) } },
             )
             Spacer(modifier = Modifier.height(12.dp))
             MemberField(
-                label = "Orador do discurso",
+                label = tr("Orador do discurso"),
                 members = members,
                 selectedId = form.tesourosOradorId,
                 enabled = enabled,
@@ -336,7 +338,7 @@ private fun ProgramEditor(
             )
             Spacer(modifier = Modifier.height(12.dp))
             MemberField(
-                label = "Joias espirituais (10 min)",
+                label = tr("Joias espirituais (10 min)"),
                 members = members,
                 selectedId = form.joiasId,
                 enabled = enabled,
@@ -344,7 +346,7 @@ private fun ProgramEditor(
             )
             Spacer(modifier = Modifier.height(12.dp))
             MemberField(
-                label = "Leitura da Bíblia (4 min) — Estudante",
+                label = tr("Leitura da Bíblia (4 min) — Estudante"),
                 members = members,
                 selectedId = form.leituraBibliaId,
                 enabled = enabled,
@@ -353,7 +355,7 @@ private fun ProgramEditor(
         }
 
         // Faca seu melhor no ministerio
-        SectionCard(title = "Faça seu melhor no ministério") {
+        SectionCard(title = tr("Faça seu melhor no ministério")) {
             MinistryPart(
                 index = 1,
                 titulo = form.min1Titulo.orEmpty(),
@@ -412,9 +414,9 @@ private fun ProgramEditor(
         }
 
         // Nossa vida crista
-        SectionCard(title = "Nossa Vida Cristã") {
+        SectionCard(title = tr("Nossa Vida Cristã")) {
             FormTextField(
-                label = "Cântico do meio",
+                label = tr("Cântico do meio"),
                 value = form.canticoMeio.orEmpty(),
                 enabled = enabled,
                 onValueChange = { v -> onUpdate { it.copy(canticoMeio = v) } },
@@ -444,14 +446,14 @@ private fun ProgramEditor(
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "Estudo bíblico de congregação (30 min)",
+                text = tr("Estudo bíblico de congregação (30 min)"),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurface,
             )
             Spacer(modifier = Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 MemberField(
-                    label = "Dirigente",
+                    label = tr("Dirigente"),
                     members = members,
                     selectedId = form.estudoDirigenteId,
                     enabled = enabled,
@@ -459,7 +461,7 @@ private fun ProgramEditor(
                     modifier = Modifier.weight(1f),
                 )
                 MemberField(
-                    label = "Leitor",
+                    label = tr("Leitor"),
                     members = members,
                     selectedId = form.estudoLeitorId,
                     enabled = enabled,
@@ -470,14 +472,14 @@ private fun ProgramEditor(
             Spacer(modifier = Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 FormTextField(
-                    label = "Cântico final",
+                    label = tr("Cântico final"),
                     value = form.canticoFinal.orEmpty(),
                     enabled = enabled,
                     onValueChange = { v -> onUpdate { it.copy(canticoFinal = v) } },
                     modifier = Modifier.width(140.dp),
                 )
                 MemberField(
-                    label = "Oração final",
+                    label = tr("Oração final"),
                     members = members,
                     selectedId = form.oracaoFinalId,
                     enabled = enabled,
@@ -507,21 +509,21 @@ private fun MinistryPart(
 ) {
     Column {
         Text(
-            text = "Parte $index",
+            text = tr("Parte {0}", index),
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.onSurface,
         )
         Spacer(modifier = Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             FormTextField(
-                label = "Título / designação",
+                label = tr("Título / designação"),
                 value = titulo,
                 enabled = enabled,
                 onValueChange = onTitulo,
                 modifier = Modifier.weight(1f),
             )
             FormTextField(
-                label = "Min.",
+                label = tr("Min."),
                 value = minutos,
                 enabled = enabled,
                 onValueChange = onMinutos,
@@ -531,7 +533,7 @@ private fun MinistryPart(
         Spacer(modifier = Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             MemberField(
-                label = "Estudante",
+                label = tr("Estudante"),
                 members = members,
                 selectedId = estudanteId,
                 enabled = enabled,
@@ -539,7 +541,7 @@ private fun MinistryPart(
                 modifier = Modifier.weight(1f),
             )
             MemberField(
-                label = "Ajudante",
+                label = tr("Ajudante"),
                 members = members,
                 selectedId = ajudanteId,
                 enabled = enabled,
@@ -564,14 +566,14 @@ private fun LifePart(
     Column {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             FormTextField(
-                label = "Título da parte",
+                label = tr("Título da parte"),
                 value = titulo,
                 enabled = enabled,
                 onValueChange = onTitulo,
                 modifier = Modifier.weight(1f),
             )
             FormTextField(
-                label = "Min.",
+                label = tr("Min."),
                 value = minutos,
                 enabled = enabled,
                 onValueChange = onMinutos,
@@ -580,7 +582,7 @@ private fun LifePart(
         }
         Spacer(modifier = Modifier.height(8.dp))
         MemberField(
-            label = "Responsável",
+            label = tr("Responsável"),
             members = members,
             selectedId = responsavelId,
             enabled = enabled,
@@ -674,7 +676,7 @@ private fun MemberField(
                 expanded = true
             },
             label = { Text(label) },
-            placeholder = { Text("Selecionar membro...") },
+            placeholder = { Text(tr("Selecionar membro...")) },
             enabled = enabled,
             singleLine = true,
             trailingIcon = {
@@ -689,7 +691,7 @@ private fun MemberField(
             onDismissRequest = { expanded = false },
         ) {
             DropdownMenuItem(
-                text = { Text("Limpar seleção", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                text = { Text(tr("Limpar seleção"), color = MaterialTheme.colorScheme.onSurfaceVariant) },
                 onClick = {
                     onSelected(null)
                     expanded = false
@@ -698,8 +700,7 @@ private fun MemberField(
             if (filtered.isEmpty()) {
                 DropdownMenuItem(
                     text = {
-                        Text(
-                            "Nenhum membro encontrado",
+                        Text(tr("Nenhum membro encontrado"),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     },
@@ -743,18 +744,18 @@ private fun ExportMenu(onPdf: () -> Unit, onS89: () -> Unit) {
                 modifier = Modifier.size(18.dp),
             )
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Exportar")
+            Text(tr("Exportar"))
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             DropdownMenuItem(
-                text = { Text("Exportar PDF") },
+                text = { Text(tr("Exportar PDF")) },
                 onClick = {
                     pendingAction = onPdf
                     expanded = false
                 },
             )
             DropdownMenuItem(
-                text = { Text("Designações (S-89)") },
+                text = { Text(tr("Designações (S-89)")) },
                 onClick = {
                     pendingAction = onS89
                     expanded = false

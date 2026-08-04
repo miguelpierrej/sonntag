@@ -1,5 +1,7 @@
 package com.example.sonntag.ui.screens.setup
 
+import com.example.sonntag.i18n.tr
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -63,8 +65,7 @@ fun InitialSetupScreen(onComplete: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             item {
-                Text(
-                    "Configuração Inicial",
+                Text(tr("Configuração Inicial"),
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(bottom = 24.dp)
@@ -75,7 +76,7 @@ fun InitialSetupScreen(onComplete: () -> Unit) {
                 OutlinedTextField(
                     value = formState.nomesCongregacao,
                     onValueChange = { viewModel.updateNome(it) },
-                    label = { Text("Nome da Congregação *") },
+                    label = { Text(tr("Nome da Congregação *")) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 16.dp)
@@ -86,7 +87,7 @@ fun InitialSetupScreen(onComplete: () -> Unit) {
                 OutlinedTextField(
                     value = formState.endereco,
                     onValueChange = { viewModel.updateEndereco(it) },
-                    label = { Text("Endereço") },
+                    label = { Text(tr("Endereço")) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 16.dp)
@@ -97,7 +98,7 @@ fun InitialSetupScreen(onComplete: () -> Unit) {
                 OutlinedTextField(
                     value = formState.telefone,
                     onValueChange = { viewModel.updateTelefone(it) },
-                    label = { Text("Telefone") },
+                    label = { Text(tr("Telefone")) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 24.dp)
@@ -105,8 +106,7 @@ fun InitialSetupScreen(onComplete: () -> Unit) {
             }
 
             item {
-                Text(
-                    "Dias de Reunião *",
+                Text(tr("Dias de Reunião *"),
                     fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(bottom = 12.dp)
@@ -136,7 +136,7 @@ fun InitialSetupScreen(onComplete: () -> Unit) {
                         .fillMaxWidth()
                         .padding(bottom = 24.dp)
                 ) {
-                    Text("+ Adicionar dia")
+                    Text(tr("+ Adicionar dia"))
                 }
             }
 
@@ -158,7 +158,7 @@ fun InitialSetupScreen(onComplete: () -> Unit) {
                         .fillMaxWidth()
                         .height(48.dp)
                 ) {
-                    Text(if (formState.isLoading) "Salvando..." else "Salvar Configuração")
+                    Text(if (formState.isLoading) tr("Salvando...") else tr("Salvar Configuração"))
                 }
             }
 
@@ -178,7 +178,7 @@ fun MeetingDayInputRow(
     modifier: Modifier = Modifier
 ) {
     val diaExpanded = remember { mutableStateOf(false) }
-    val diaLabel = DIAS_SEMANA.find { it.first == day.diaSemana }?.second ?: "Selecione"
+    val diaLabel = tr(DIAS_SEMANA.find { it.first == day.diaSemana }?.second ?: "Selecione")
 
     Row(
         modifier = modifier,
@@ -197,7 +197,7 @@ fun MeetingDayInputRow(
             ) {
                 DIAS_SEMANA.forEach { (dia, nome) ->
                     DropdownMenuItem(
-                        text = { Text(nome) },
+                        text = { Text(tr(nome)) },
                         onClick = {
                             onDiaChange(dia)
                             diaExpanded.value = false
@@ -212,7 +212,7 @@ fun MeetingDayInputRow(
         OutlinedTextField(
             value = day.hora,
             onValueChange = { if (it.length <= 5) onHoraChange(it) },
-            label = { Text("HH:mm") },
+            label = { Text(tr("HH:mm")) },
             modifier = Modifier.width(100.dp)
         )
 
@@ -222,7 +222,7 @@ fun MeetingDayInputRow(
             onClick = onRemove,
             modifier = Modifier.width(100.dp)
         ) {
-            Text("Remover")
+            Text(tr("Remover"))
         }
     }
 }

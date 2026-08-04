@@ -8,12 +8,14 @@ import com.example.sonntag.data.repos.MeetingsRepository
 import com.example.sonntag.data.repos.SettingsRepository
 import com.example.sonntag.data.sqldelight.Cleaning_groups
 import com.example.sonntag.domain.usecases.MeetingGenerator
+import com.example.sonntag.domain.usecases.isoYearWeek
+import com.example.sonntag.domain.usecases.weekStart
 import com.example.sonntag.pdf.CleaningScheduleLine
 import com.example.sonntag.pdf.CleaningSchedulePdfData
+import com.example.sonntag.i18n.LocaleController
 import com.example.sonntag.pdf.PdfExportService
-import com.example.sonntag.ui.util.dayNamePt
-import com.example.sonntag.ui.util.monthNamePt
-import com.example.sonntag.ui.util.monthNamePtCapitalized
+import com.example.sonntag.pdf.cleaningPdfStrings
+import com.example.sonntag.ui.util.slugMonth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,7 +25,6 @@ import kotlinx.datetime.Clock
 import kotlinx.datetime.DatePeriod
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
-import kotlinx.datetime.isoDayNumber
 import kotlinx.datetime.plus
 import kotlinx.datetime.toLocalDateTime
 
@@ -36,6 +37,7 @@ data class CleaningWeekItem(
     val anchorMonth: Int,
     val periodText: String,
     val meetingDayTexts: List<String>,
+    val meetingDates: List<LocalDate>,
     val isPast: Boolean,
     val assignedGroupId: Long?,
 )
@@ -56,6 +58,7 @@ class CleaningViewModel(
     private val meetingGenerator: MeetingGenerator,
     private val settingsRepository: SettingsRepository,
     private val pdfExportService: PdfExportService,
+    private val localeController: LocaleController,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(CleaningUiState())
@@ -106,6 +109,7 @@ class CleaningViewModel(
                         anchorMonth = thursday.monthNumber,
                         periodText = formatPeriod(monday, sunday),
                         meetingDayTexts = sortedDates.map { formatMeetingDay(it) },
+                        meetingDates = sortedDates,
                         isPast = monday < thisWeekMonday,
                         assignedGroupId = assigned,
                     )
@@ -160,10 +164,12 @@ class CleaningViewModel(
         val visibleWeeks = state.weekItems.filter {
             it.anchorYear == state.visibleYear && it.anchorMonth == state.visibleMonth
         }
-        val monthLabel = "${monthNamePtCapitalized(state.visibleMonth)} ${state.visibleYear}"
-        val slug = "limpeza-${monthNamePt(state.visibleMonth)}-${state.visibleYear}"
+        val translator = localeController.translator
+        val labels = cleaningPdfStrings(localeController.current)
+        val monthLabel = translator.monthYearLabel(state.visibleMonth, state.visibleYear)
+        val slug = "limpeza-${slugMonth(translator, state.visibleMonth)}-${state.visibleYear}"
         return CleaningSchedulePdfData(
-            congregacao = settings?.nome?.takeIf { it.isNotBlank() } ?: "Congregação",
+            congregacao = settings?.nome?.takeIf { it.isNotBlank() } ?: labels.common.congregacao,
             endereco = settings?.endereco?.takeIf { it.isNotBlank() },
             mesLabel = monthLabel,
             fileSlug = slug,
@@ -174,6 +180,7 @@ class CleaningViewModel(
                     grupoResponsavel = week.assignedGroupId?.let { groupsById[it]?.nome },
                 )
             },
+            labels = labels,
         )
     }
 
@@ -199,41 +206,10 @@ class CleaningViewModel(
         return newYear to newMonth
     }
 
-    private fun weekStart(date: LocalDate): LocalDate {
-        val shift = date.dayOfWeek.isoDayNumber - 1
-        return date.plus(DatePeriod(days = -shift))
-    }
+    private fun formatPeriod(start: LocalDate, end: LocalDate): String =
+        localeController.translator.weekRange(start, end)
 
-    private fun isoYearWeek(date: LocalDate): Pair<Int, Int> {
-        val day = date.dayOfWeek.isoDayNumber
-        val thursday = date.plus(DatePeriod(days = 4 - day))
-        val weekYear = thursday.year
-
-        val jan4 = LocalDate(weekYear, 1, 4)
-        val jan4Day = jan4.dayOfWeek.isoDayNumber
-        var firstThursday = jan4.plus(DatePeriod(days = 4 - jan4Day))
-
-        var week = 1
-        while (firstThursday < thursday) {
-            firstThursday = firstThursday.plus(DatePeriod(days = 7))
-            week++
-        }
-
-        return weekYear to week
-    }
-
-    private fun formatPeriod(start: LocalDate, end: LocalDate): String {
-        val startMonth = monthNamePt(start.monthNumber)
-        val endMonth = monthNamePt(end.monthNumber)
-        return if (start.monthNumber == end.monthNumber && start.year == end.year) {
-            "${start.dayOfMonth} a ${end.dayOfMonth} de $endMonth"
-        } else {
-            "${start.dayOfMonth} de $startMonth a ${end.dayOfMonth} de $endMonth"
-        }
-    }
-
-    private fun formatMeetingDay(date: LocalDate): String {
-        return "${dayNamePt(date.dayOfWeek)} (${date.dayOfMonth})"
-    }
+    private fun formatMeetingDay(date: LocalDate): String =
+        localeController.translator.dayWithDate(date)
 }
 

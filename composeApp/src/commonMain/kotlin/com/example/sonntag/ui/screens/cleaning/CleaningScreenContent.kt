@@ -1,5 +1,8 @@
 package com.example.sonntag.ui.screens.cleaning
 
+import com.example.sonntag.i18n.tr
+import com.example.sonntag.i18n.LocalT
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -62,12 +65,12 @@ fun CleaningScreenContent() {
     val canExport = !state.isLoading && visibleWeeksCount > 0
 
     ScreenScaffold(
-        title = "Limpeza",
-        subtitle = "Atribuição semanal de grupos",
+        title = tr("Limpeza"),
+        subtitle = tr("Atribuição semanal de grupos"),
         actions = {
             if (!isViewingCurrentMonth) {
                 TextButton(onClick = viewModel::showCurrentMonth) {
-                    Text("Hoje")
+                    Text(tr("Hoje"))
                 }
             }
             OutlinedButton(
@@ -80,7 +83,7 @@ fun CleaningScreenContent() {
                     modifier = Modifier.size(18.dp),
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Exportar PDF")
+                Text(tr("Exportar PDF"))
             }
             OutlinedButton(
                 onClick = viewModel::exportVisibleMonthPng,
@@ -92,7 +95,7 @@ fun CleaningScreenContent() {
                     modifier = Modifier.size(18.dp),
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Exportar PNG")
+                Text(tr("Exportar PNG"))
             }
         },
     ) {
@@ -120,8 +123,8 @@ fun CleaningScreenContent() {
                 if (visibleWeeks.isEmpty()) {
                     EmptyState(
                         icon = Icons.Outlined.CleaningServices,
-                        title = "Nenhuma reunião neste mês",
-                        description = "Navegue para outro mês ou cadastre dias de reunião em Configurações.",
+                        title = tr("Nenhuma reunião neste mês"),
+                        description = tr("Navegue para outro mês ou cadastre dias de reunião em Configurações."),
                     )
                 } else {
                     LazyColumn(
@@ -160,15 +163,16 @@ private fun WeekCard(
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
+        val t = LocalT.current
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = item.periodText,
+                text = t.weekRange(item.weekStart, item.weekEnd),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = alphaMod),
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = item.meetingDayTexts.joinToString(" • "),
+                text = item.meetingDates.joinToString(" • ") { t.dayWithDate(it) },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alphaMod),
             )
@@ -196,9 +200,9 @@ private fun GroupDropdown(
     val effectivelyEnabled = enabled && hasGroups
     val selectedName = groupOptions.firstOrNull { it.first == selectedId }?.second
     val displayText = when {
-        !hasGroups -> "Cadastre grupos em Configurações"
+        !hasGroups -> tr("Cadastre grupos em Configurações")
         selectedName != null -> selectedName
-        else -> "Sem grupo atribuído"
+        else -> tr("Sem grupo atribuído")
     }
 
     ExposedDropdownMenuBox(
@@ -212,7 +216,7 @@ private fun GroupDropdown(
             onValueChange = {},
             readOnly = true,
             enabled = effectivelyEnabled,
-            label = { Text("Grupo responsável") },
+            label = { Text(tr("Grupo responsável")) },
             trailingIcon = {
                 ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded.value && effectivelyEnabled)
             },
@@ -225,7 +229,7 @@ private fun GroupDropdown(
             onDismissRequest = { expanded.value = false },
         ) {
             DropdownMenuItem(
-                text = { Text("Sem grupo atribuído") },
+                text = { Text(tr("Sem grupo atribuído")) },
                 onClick = {
                     onSelected(null)
                     expanded.value = false

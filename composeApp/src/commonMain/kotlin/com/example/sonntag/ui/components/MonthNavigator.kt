@@ -1,5 +1,7 @@
 package com.example.sonntag.ui.components
 
+import com.example.sonntag.i18n.tr
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
@@ -14,7 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.example.sonntag.ui.util.monthNamePtCapitalized
+import com.example.sonntag.i18n.LocalT
 
 @Composable
 fun MonthNavigator(
@@ -32,12 +34,12 @@ fun MonthNavigator(
         IconButton(onClick = onPrev) {
             Icon(
                 imageVector = Icons.Outlined.ChevronLeft,
-                contentDescription = "Mês anterior",
+                contentDescription = tr("Mês anterior"),
                 tint = MaterialTheme.colorScheme.onSurface,
             )
         }
         Text(
-            text = "${monthNamePtCapitalized(month)} $year",
+            text = "${LocalT.current.monthNameCapitalized(month)} $year",
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(horizontal = 4.dp),
@@ -45,7 +47,7 @@ fun MonthNavigator(
         IconButton(onClick = onNext) {
             Icon(
                 imageVector = Icons.Outlined.ChevronRight,
-                contentDescription = "Próximo mês",
+                contentDescription = tr("Próximo mês"),
                 tint = MaterialTheme.colorScheme.onSurface,
             )
         }

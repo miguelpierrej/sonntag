@@ -23,6 +23,7 @@ import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.CleaningServices
 import androidx.compose.material.icons.outlined.Dashboard
 import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material.icons.outlined.Headphones
 import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Weekend
@@ -47,6 +48,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.sonntag.data.repos.SettingsRepository
 import com.example.sonntag.data.sqldelight.Settings
+import com.example.sonntag.i18n.tr
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.koin.compose.koinInject
@@ -71,9 +73,9 @@ sealed interface NavEntry {
     ) : NavEntry
 }
 
-private fun navEntries(): List<NavEntry> = listOf(
+private fun navEntries(onNavigate: (String) -> Unit): List<NavEntry> = listOf(
     NavEntry.Single(
-        NavItem("dashboard", "Dashboard", Icons.Outlined.Dashboard) { DashboardScreen().Content() },
+        NavItem("dashboard", "Dashboard", Icons.Outlined.Dashboard) { DashboardScreen().Content(onNavigate) },
     ),
     NavEntry.Group(
         id = "programacoes",
@@ -86,6 +88,9 @@ private fun navEntries(): List<NavEntry> = listOf(
     ),
     NavEntry.Single(
         NavItem("membros", "Membros", Icons.Outlined.People) { MembersScreen().Content() },
+    ),
+    NavEntry.Single(
+        NavItem("av", "Áudio/vídeo e acomodadores", Icons.Outlined.Headphones) { AvAssignmentsScreen().Content() },
     ),
     NavEntry.Single(
         NavItem("limpeza", "Limpeza", Icons.Outlined.CleaningServices) { CleaningScreen().Content() },
@@ -104,9 +109,10 @@ private fun List<NavEntry>.allItems(): List<NavItem> = flatMap { entry ->
 
 @Composable
 fun MainNavigationShell() {
-    val entries = remember { navEntries() }
+    val selectedIdState = remember { mutableStateOf("dashboard") }
+    var selectedId by selectedIdState
+    val entries = remember { navEntries { selectedIdState.value = it } }
     val allItems = remember(entries) { entries.allItems() }
-    var selectedId by remember { mutableStateOf(allItems.first().id) }
     val settingsRepo = koinInject<SettingsRepository>()
     var settings by remember { mutableStateOf<Settings?>(null) }
 
@@ -192,7 +198,7 @@ private fun DrawerHeader(name: String, subtitle: String?) {
             .padding(horizontal = 20.dp, vertical = 20.dp),
     ) {
         Text(
-            text = name,
+            text = tr(name),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 2,
@@ -219,6 +225,11 @@ private fun DrawerGroup(
 ) {
     val childSelected = group.children.any { it.id == selectedId }
     var expanded by remember { mutableStateOf(childSelected) }
+
+    // Navegacao vinda de fora do menu (ex.: cards do painel) abre o grupo correspondente.
+    LaunchedEffect(childSelected) {
+        if (childSelected) expanded = true
+    }
 
     DrawerGroupHeader(
         label = group.label,
@@ -281,7 +292,7 @@ private fun DrawerGroupHeader(
         )
         Spacer(modifier = Modifier.width(12.dp))
         Text(
-            text = label,
+            text = tr(label),
             style = MaterialTheme.typography.labelLarge,
             color = contentColor,
             modifier = Modifier.weight(1f),
@@ -334,7 +345,7 @@ private fun DrawerItem(
         )
         Spacer(modifier = Modifier.width(12.dp))
         Text(
-            text = label,
+            text = tr(label),
             style = MaterialTheme.typography.labelLarge,
             color = contentColor,
         )

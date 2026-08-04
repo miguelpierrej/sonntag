@@ -94,6 +94,44 @@ actual fun createDatabaseDriver(): SqlDriver {
                 )
             }
 
+            // v5: tabela de preferencias (idioma etc.)
+            connection.createStatement().use {
+                it.execute("CREATE TABLE IF NOT EXISTS app_prefs (chave TEXT PRIMARY KEY, valor TEXT NOT NULL)")
+            }
+
+            // v6: tabela de designacoes de audio/video e acomodadores
+            connection.createStatement().use {
+                it.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS av_assignments (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        meeting_id INTEGER NOT NULL UNIQUE,
+                        audio_id INTEGER,
+                        video_id INTEGER,
+                        plataforma1_id INTEGER,
+                        plataforma2_id INTEGER,
+                        microfone1_id INTEGER,
+                        microfone2_id INTEGER,
+                        acomodador1_id INTEGER,
+                        acomodador2_id INTEGER,
+                        FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+            }
+
+            // v7: bosquejos de discursos publicos importados do S-34 (.jwpub)
+            connection.createStatement().use {
+                it.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS talk_outlines (
+                        numero INTEGER PRIMARY KEY,
+                        titulo TEXT NOT NULL
+                    )
+                    """.trimIndent()
+                )
+            }
+
             // v4: add 4th ministry slot to midweek_programs (apostilas com 4 partes)
             listOf("min4_titulo TEXT", "min4_minutos TEXT", "min4_estudante_id INTEGER", "min4_ajudante_id INTEGER")
                 .forEach { columnDef ->

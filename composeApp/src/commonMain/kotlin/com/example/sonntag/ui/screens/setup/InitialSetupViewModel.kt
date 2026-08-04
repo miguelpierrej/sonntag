@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.sonntag.data.repos.MeetingDaysRepository
 import com.example.sonntag.data.repos.SettingsRepository
+import com.example.sonntag.i18n.LocaleController
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,7 +29,8 @@ data class SetupFormState(
 
 class InitialSetupViewModel(
     private val settingsRepo: SettingsRepository,
-    private val meetingDaysRepo: MeetingDaysRepository
+    private val meetingDaysRepo: MeetingDaysRepository,
+    private val localeController: LocaleController,
 ) : ViewModel() {
 
     private val _formState = MutableStateFlow(SetupFormState())
@@ -71,12 +73,12 @@ class InitialSetupViewModel(
 
                 // Validação
                 if (state.nomesCongregacao.isBlank()) {
-                    _formState.value = state.copy(errorMessage = "Nome da congregação é obrigatório")
+                    _formState.value = state.copy(errorMessage = localeController.translator("Nome da congregação é obrigatório"))
                     return@launch
                 }
 
                 if (state.meetingDays.isEmpty()) {
-                    _formState.value = state.copy(errorMessage = "Adicione pelo menos um dia de reunião")
+                    _formState.value = state.copy(errorMessage = localeController.translator("Adicione pelo menos um dia de reunião"))
                     return@launch
                 }
 
@@ -98,7 +100,7 @@ class InitialSetupViewModel(
             } catch (e: Exception) {
                 _formState.value = _formState.value.copy(
                     isLoading = false,
-                    errorMessage = "Erro ao salvar: ${e.message}"
+                    errorMessage = localeController.translator("Erro ao salvar: {0}", e.message)
                 )
             }
         }

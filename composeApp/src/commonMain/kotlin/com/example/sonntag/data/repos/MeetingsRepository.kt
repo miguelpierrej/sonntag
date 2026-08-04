@@ -10,6 +10,10 @@ class MeetingsRepository(private val database: SonntagDatabase) {
         return flowOf(database.schemaQueries.getAllMeetings().executeAsList())
     }
 
+    fun getAllOnce(): List<Meetings> {
+        return database.schemaQueries.getAllMeetings().executeAsList()
+    }
+
     fun getById(id: Long): Flow<Meetings?> {
         return flowOf(database.schemaQueries.getMeetingById(id).executeAsOneOrNull())
     }

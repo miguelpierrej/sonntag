@@ -1,5 +1,8 @@
 package com.example.sonntag.ui.screens.weekend
 
+import com.example.sonntag.i18n.tr
+import com.example.sonntag.i18n.LocalT
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -23,6 +26,8 @@ import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.EventAvailable
 import androidx.compose.material.icons.automirrored.outlined.EventNote
 import androidx.compose.material.icons.outlined.FileDownload
+import androidx.compose.material.icons.outlined.UploadFile
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -52,6 +57,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.sonntag.data.sqldelight.Members
+import com.example.sonntag.domain.models.TalkOutline
 import com.example.sonntag.ui.components.EmptyState
 import com.example.sonntag.ui.components.MonthNavigator
 import com.example.sonntag.ui.components.ScreenScaffold
@@ -78,14 +84,30 @@ fun WeekendProgramsScreenContent() {
     val canExportMonth = !state.isLoading && visibleMeetings.isNotEmpty()
 
     ScreenScaffold(
-        title = "Programações de fim de semana",
-        subtitle = "Discurso público e estudo de A Sentinela",
+        title = tr("Programações de fim de semana"),
+        subtitle = tr("Discurso público e estudo de A Sentinela"),
         leadingIcon = Icons.AutoMirrored.Outlined.EventNote,
         actions = {
             if (!isViewingCurrentMonth) {
                 TextButton(onClick = viewModel::showCurrentMonth) {
-                    Text("Hoje")
+                    Text(tr("Hoje"))
                 }
+            }
+            OutlinedButton(
+                onClick = viewModel::importS34,
+                enabled = !state.importInProgress,
+            ) {
+                if (state.importInProgress) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                } else {
+                    Icon(
+                        imageVector = Icons.Outlined.UploadFile,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(if (state.importInProgress) tr("Importando...") else tr("Importar S-34"))
             }
             ExportMenu(
                 canExportMeeting = canExportMeeting,
@@ -97,6 +119,17 @@ fun WeekendProgramsScreenContent() {
             )
         },
     ) {
+        state.importResult?.let { message ->
+            AlertDialog(
+                onDismissRequest = viewModel::dismissImportResult,
+                confirmButton = {
+                    TextButton(onClick = viewModel::dismissImportResult) { Text(tr("OK")) }
+                },
+                title = { Text(tr("Importar S-34")) },
+                text = { Text(message) },
+            )
+        }
+
         if (state.isLoading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
@@ -120,8 +153,7 @@ fun WeekendProgramsScreenContent() {
                 Spacer(modifier = Modifier.height(12.dp))
                 if (visibleMeetings.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(
-                            "Nenhuma reunião neste mês",
+                        Text(tr("Nenhuma reunião neste mês"),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -150,14 +182,15 @@ fun WeekendProgramsScreenContent() {
                     selected == null || !selectedIsInVisibleMonth -> {
                         EmptyState(
                             icon = Icons.Outlined.EventAvailable,
-                            title = "Selecione uma reunião para editar",
-                            description = "Escolha uma reunião na lista ao lado para preencher a programação.",
+                            title = tr("Selecione uma reunião para editar"),
+                            description = tr("Escolha uma reunião na lista ao lado para preencher a programação."),
                         )
                     }
                     else -> {
                         ProgramEditor(
                             item = selected,
                             tituloDiscurso = state.tituloDiscurso,
+                            talkOutlines = state.talkOutlines,
                             oradorId = state.oradorId,
                             oradorNome = state.oradorNome,
                             presidenteId = state.presidenteId,
@@ -211,11 +244,11 @@ private fun ExportMenu(
                 modifier = Modifier.size(18.dp),
             )
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Exportar")
+            Text(tr("Exportar"))
         }
         DropdownMenu(expanded = expanded.value, onDismissRequest = { expanded.value = false }) {
             DropdownMenuItem(
-                text = { Text("Esta reunião (PDF)") },
+                text = { Text(tr("Esta reunião (PDF)")) },
                 enabled = canExportMeeting,
                 onClick = {
                     pendingAction = onMeetingPdf
@@ -223,7 +256,7 @@ private fun ExportMenu(
                 },
             )
             DropdownMenuItem(
-                text = { Text("Esta reunião (PNG)") },
+                text = { Text(tr("Esta reunião (PNG)")) },
                 enabled = canExportMeeting,
                 onClick = {
                     pendingAction = onMeetingPng
@@ -231,7 +264,7 @@ private fun ExportMenu(
                 },
             )
             DropdownMenuItem(
-                text = { Text("Este mês (PDF)") },
+                text = { Text(tr("Este mês (PDF)")) },
                 enabled = canExportMonth,
                 onClick = {
                     pendingAction = onMonthPdf
@@ -239,7 +272,7 @@ private fun ExportMenu(
                 },
             )
             DropdownMenuItem(
-                text = { Text("Este mês (PNG)") },
+                text = { Text(tr("Este mês (PNG)")) },
                 enabled = canExportMonth,
                 onClick = {
                     pendingAction = onMonthPng
@@ -270,7 +303,7 @@ private fun MeetingListItem(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = item.dateLabelShort,
+                text = LocalT.current.longDate(item.date),
                 style = MaterialTheme.typography.titleMedium,
                 color = titleColor.copy(alpha = alphaMod),
                 modifier = Modifier.weight(1f),
@@ -279,12 +312,12 @@ private fun MeetingListItem(
             )
             if (item.isPast) {
                 Spacer(modifier = Modifier.width(8.dp))
-                Badge(text = "Realizada")
+                Badge(text = tr("Realizada"))
             }
         }
         Spacer(modifier = Modifier.height(2.dp))
         val secondary = if (item.titleSummary.isNullOrBlank()) {
-            "${item.time} — Sem programação"
+            "${item.time} — ${tr("Sem programação")}"
         } else {
             "${item.time} — ${item.titleSummary}"
         }
@@ -304,6 +337,7 @@ private fun MeetingListItem(
 private fun ProgramEditor(
     item: WeekendMeetingItem,
     tituloDiscurso: String,
+    talkOutlines: List<TalkOutline>,
     oradorId: Long?,
     oradorNome: String,
     presidenteId: Long?,
@@ -323,13 +357,13 @@ private fun ProgramEditor(
             .widthIn(max = EditorMaxWidth),
     ) {
         Text(
-            text = item.dateLabelLong,
+            text = LocalT.current.longDateWithYear(item.date),
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.onSurface,
         )
         Spacer(modifier = Modifier.height(2.dp))
         Text(
-            text = "Reunião pública às ${item.time}",
+            text = tr("Reunião pública às {0}", item.time),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -350,22 +384,21 @@ private fun ProgramEditor(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.End,
                     ) {
-                        Badge(text = "Realizada")
+                        Badge(text = tr("Realizada"))
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                 }
 
-                OutlinedTextField(
+                TalkTitlePicker(
                     value = tituloDiscurso,
-                    onValueChange = onTituloChanged,
-                    label = { Text("Título do discurso") },
+                    outlines = talkOutlines,
                     enabled = !isReadOnly,
-                    modifier = Modifier.fillMaxWidth(),
+                    onValueChanged = onTituloChanged,
                 )
                 Spacer(modifier = Modifier.height(12.dp))
 
                 MemberPicker(
-                    label = "Orador",
+                    label = tr("Orador"),
                     members = members,
                     selectedId = oradorId,
                     selectedNome = oradorNome,
@@ -376,7 +409,7 @@ private fun ProgramEditor(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 MemberPicker(
-                    label = "Presidente",
+                    label = tr("Presidente"),
                     members = members,
                     selectedId = presidenteId,
                     enabled = !isReadOnly,
@@ -385,7 +418,7 @@ private fun ProgramEditor(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 MemberPicker(
-                    label = "Dirigente do estudo",
+                    label = tr("Dirigente do estudo"),
                     members = members,
                     selectedId = dirigenteId,
                     enabled = !isReadOnly,
@@ -394,11 +427,90 @@ private fun ProgramEditor(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 MemberPicker(
-                    label = "Leitor",
+                    label = tr("Leitor"),
                     members = members,
                     selectedId = leitorId,
                     enabled = !isReadOnly,
                     onSelected = { id, _ -> onLeitorChanged(id) },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Titulo do discurso: aceita texto livre e, quando o S-34 foi importado, oferece a
+ * lista de bosquejos (com o numero) filtrada pelo que esta sendo digitado.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TalkTitlePicker(
+    value: String,
+    outlines: List<TalkOutline>,
+    enabled: Boolean,
+    onValueChanged: (String) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    val filtered = remember(value, outlines) {
+        val term = value.lowercase().trim()
+        if (term.isBlank()) outlines
+        else outlines.filter { it.display.lowercase().contains(term) }
+    }
+
+    ExposedDropdownMenuBox(
+        expanded = expanded && enabled,
+        onExpandedChange = { if (enabled) expanded = !expanded },
+    ) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = {
+                onValueChanged(it)
+                expanded = true
+            },
+            label = { Text(tr("Título do discurso")) },
+            placeholder = { Text(tr("Digite um título ou escolha um bosquejo do S-34...")) },
+            enabled = enabled,
+            trailingIcon = {
+                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded && enabled)
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable, enabled),
+        )
+        ExposedDropdownMenu(
+            expanded = expanded && enabled,
+            onDismissRequest = { expanded = false },
+        ) {
+            when {
+                outlines.isEmpty() -> DropdownMenuItem(
+                    text = {
+                        Text(
+                            tr("Nenhum bosquejo importado — use \"Importar S-34\""),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    },
+                    enabled = false,
+                    onClick = {},
+                )
+                filtered.isEmpty() -> DropdownMenuItem(
+                    text = {
+                        Text(
+                            tr("Nenhum bosquejo encontrado"),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    },
+                    enabled = false,
+                    onClick = {},
+                )
+            }
+            filtered.forEach { outline ->
+                DropdownMenuItem(
+                    text = { Text(outline.display) },
+                    onClick = {
+                        onValueChanged(outline.display)
+                        expanded = false
+                    },
                 )
             }
         }
@@ -457,8 +569,8 @@ private fun MemberPicker(
             },
             label = { Text(label) },
             placeholder = {
-                if (allowFreeText) Text("Nome ou selecionar da lista...")
-                else Text("Selecionar membro...")
+                if (allowFreeText) Text(tr("Nome ou selecionar da lista..."))
+                else Text(tr("Selecionar membro..."))
             },
             enabled = enabled,
             trailingIcon = {
@@ -473,7 +585,7 @@ private fun MemberPicker(
             onDismissRequest = { expanded = false },
         ) {
             DropdownMenuItem(
-                text = { Text("Limpar seleção", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                text = { Text(tr("Limpar seleção"), color = MaterialTheme.colorScheme.onSurfaceVariant) },
                 onClick = {
                     onSelected(null, "")
                     expanded = false
@@ -482,8 +594,7 @@ private fun MemberPicker(
             if (filtered.isEmpty()) {
                 DropdownMenuItem(
                     text = {
-                        Text(
-                            "Nenhum membro encontrado",
+                        Text(tr("Nenhum membro encontrado"),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     },

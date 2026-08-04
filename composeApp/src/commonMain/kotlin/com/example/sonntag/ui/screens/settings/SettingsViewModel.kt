@@ -6,6 +6,7 @@ import com.example.sonntag.data.repos.MeetingDaysRepository
 import com.example.sonntag.data.repos.MeetingsRepository
 import com.example.sonntag.data.repos.SettingsRepository
 import com.example.sonntag.data.sqldelight.Meeting_days
+import com.example.sonntag.i18n.LocaleController
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -40,6 +41,7 @@ class SettingsViewModel(
     private val settingsRepository: SettingsRepository,
     private val meetingDaysRepository: MeetingDaysRepository,
     private val meetingsRepository: MeetingsRepository,
+    private val localeController: LocaleController,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -149,7 +151,7 @@ class SettingsViewModel(
             }.onFailure { err ->
                 _uiState.value = _uiState.value.copy(
                     isSaving = false,
-                    errorMessage = "Erro ao salvar configurações: ${err.message}",
+                    errorMessage = localeController.translator("Erro ao salvar configurações: {0}", err.message),
                 )
             }
         }
