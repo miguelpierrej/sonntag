@@ -9,7 +9,7 @@ interface S34ImportService {
      * bosquejos encontrados. Devolve null se o usuario cancelar e lista vazia se
      * o arquivo nao for um S-34 valido.
      */
-    fun pickTalkOutlines(dialogTitle: String, filterLabel: String): List<TalkOutline>?
+    suspend fun pickTalkOutlines(dialogTitle: String, filterLabel: String): List<TalkOutline>?
 }
 
 expect fun createS34ImportService(): S34ImportService

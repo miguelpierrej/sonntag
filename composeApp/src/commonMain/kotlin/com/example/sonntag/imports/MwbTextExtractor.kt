@@ -1,8 +1,5 @@
 package com.example.sonntag.imports
 
-import org.apache.pdfbox.pdmodel.PDDocument
-import org.apache.pdfbox.text.PDFTextStripper
-import org.apache.pdfbox.text.TextPosition
 import kotlin.math.abs
 
 /**
@@ -14,20 +11,14 @@ import kotlin.math.abs
  * coluna e lida inteira de cima para baixo, como se le de verdade.
  *
  * A geometria tambem resolve os espacos espurios da fonte ("Canció n"): a apostila desenha
- * alguns acentos como glifo separado, e o PDFBox insere um espaco entre eles. Colados, os
+ * alguns acentos como glifo separado, e a extracao insere um espaco entre eles. Colados, os
  * pedacos ficam a distancia ~0; um espaco de verdade mede quase a largura de um espaco.
- * Ver [joinWords].
+ * Ver [joinPdfWords].
+ *
+ * Nada aqui depende da biblioteca de PDF: as palavras chegam ja posicionadas via
+ * [extractPdfWords], que cada plataforma implementa.
  */
 object MwbTextExtractor {
-
-    /** Palavra desenhada na pagina, com a caixa que ocupa. */
-    private data class Word(
-        val text: String,
-        val x0: Float,
-        val x1: Float,
-        val y: Float,
-        val spaceWidth: Float,
-    )
 
     /** Palavras da mesma linha ficam a menos disso em y (entrelinha da apostila e ~11). */
     private const val LINE_TOLERANCE = 3f
@@ -49,11 +40,15 @@ object MwbTextExtractor {
     /** Distancia que isola o numero da pagina do resto da primeira linha. */
     private const val ISOLATION_GAP = 30f
 
-    fun extract(document: PDDocument): String {
+    /** Texto da apostila inteira, coluna por coluna. */
+    fun extract(pdfBytes: ByteArray): String = extract(extractPdfWords(pdfBytes))
+
+    /** Sobrecarga para quem ja tem as palavras (usada nos testes de regressao). */
+    fun extract(pages: List<List<PdfWord>>): String {
         val sb = StringBuilder()
-        for (page in 1..document.numberOfPages) {
-            val words = semNumeroDaPagina(wordsOf(document, page))
-            if (words.isEmpty()) continue
+        pages.forEach { pagina ->
+            val words = semNumeroDaPagina(pagina)
+            if (words.isEmpty()) return@forEach
             sb.append(layoutPage(words))
         }
         return sb.toString()
@@ -64,7 +59,7 @@ object MwbTextExtractor {
      * cabecalho da semana ("...JEREMIAS 13-15 2"), fazendo o capitulo final ser confundido
      * com ele. Aqui ele e reconhecido pelo isolamento e descartado na origem.
      */
-    private fun semNumeroDaPagina(words: List<Word>): List<Word> {
+    private fun semNumeroDaPagina(words: List<PdfWord>): List<PdfWord> {
         if (words.isEmpty()) return words
         val topo = words.minOf { it.y }
         val primeira = words.filter { it.y - topo <= LINE_TOLERANCE }.sortedBy { it.x0 }
@@ -74,37 +69,15 @@ object MwbTextExtractor {
         return words - numero.toSet()
     }
 
-    private fun distancia(a: Word, b: Word): Float =
+    private fun distancia(a: PdfWord, b: PdfWord): Float =
         if (a.x0 < b.x0) b.x0 - a.x1 else a.x0 - b.x1
-
-    private fun wordsOf(document: PDDocument, page: Int): List<Word> {
-        val words = mutableListOf<Word>()
-        val stripper = object : PDFTextStripper() {
-            override fun writeString(text: String, textPositions: List<TextPosition>) {
-                val limpo = text.trim()
-                if (limpo.isEmpty() || textPositions.isEmpty()) return
-                words += Word(
-                    text = limpo,
-                    x0 = textPositions.minOf { it.xDirAdj },
-                    x1 = textPositions.maxOf { it.xDirAdj + it.widthDirAdj },
-                    y = textPositions[0].yDirAdj,
-                    spaceWidth = textPositions[0].widthOfSpace.takeIf { it > 0f } ?: 2.5f,
-                )
-            }
-        }
-        stripper.sortByPosition = true
-        stripper.startPage = page
-        stripper.endPage = page
-        stripper.getText(document)
-        return words
-    }
 
     /**
      * Procura a calha entre as colunas: o x do meio da pagina atravessado pelo menor numero
      * de palavras. Paginas de coluna unica (as de "Nossa Vida Crista") nao tem calha -- toda
      * posicao central corta muitas palavras --, e ai a pagina e lida de uma vez so.
      */
-    private fun layoutPage(words: List<Word>): String {
+    private fun layoutPage(words: List<PdfWord>): String {
         val left = words.minOf { it.x0 }
         val right = words.maxOf { it.x1 }
         val candidatos = ((left + (right - left) * 0.35f).toInt()..(left + (right - left) * 0.65f).toInt())
@@ -116,8 +89,8 @@ object MwbTextExtractor {
         // secao) ocupa a largura toda e fecha a faixa: as duas colunas acumuladas ate ali
         // sao despejadas -- esquerda inteira, depois direita -- e a linha sai intacta.
         val sb = StringBuilder()
-        val esquerda = mutableListOf<Word>()
-        val direita = mutableListOf<Word>()
+        val esquerda = mutableListOf<PdfWord>()
+        val direita = mutableListOf<PdfWord>()
         fun despeja() {
             sb.append(linesOf(esquerda)).append(linesOf(direita))
             esquerda.clear()
@@ -128,7 +101,7 @@ object MwbTextExtractor {
                 linha.forEach { if (it.x1 <= calha) esquerda += it else direita += it }
             } else {
                 despeja()
-                sb.append(joinWords(linha)).append('\n')
+                sb.append(joinPdfWords(linha)).append('\n')
             }
         }
         despeja()
@@ -140,7 +113,7 @@ object MwbTextExtractor {
      * bastante. Linhas que atravessam a calha com espacamento normal de texto (o cabecalho
      * da semana, o rodape com o cantico final) sao de largura total.
      */
-    private fun temVaoNaCalha(linha: List<Word>, calha: Int): Boolean {
+    private fun temVaoNaCalha(linha: List<PdfWord>, calha: Int): Boolean {
         // Palavra pousada em cima da calha (a arte dos titulos e uma so, de ponta a ponta):
         // a linha ocupa a largura toda.
         if (linha.any { it.x0 < calha && it.x1 > calha }) return false
@@ -151,9 +124,9 @@ object MwbTextExtractor {
     }
 
     /** Agrupa as palavras da pagina em linhas, de cima para baixo. */
-    private fun groupLines(words: List<Word>): List<List<Word>> {
-        val out = mutableListOf<List<Word>>()
-        var linha = mutableListOf<Word>()
+    private fun groupLines(words: List<PdfWord>): List<List<PdfWord>> {
+        val out = mutableListOf<List<PdfWord>>()
+        var linha = mutableListOf<PdfWord>()
         words.sortedWith(compareBy({ it.y }, { it.x0 })).forEach { w ->
             if (linha.isNotEmpty() && abs(w.y - linha[0].y) > LINE_TOLERANCE) {
                 out += linha
@@ -166,16 +139,16 @@ object MwbTextExtractor {
     }
 
     /** Agrupa palavras em linhas por y e devolve o texto, uma linha por \n. */
-    private fun linesOf(words: List<Word>): String =
-        groupLines(words).joinToString("") { joinWords(it) + "\n" }
+    private fun linesOf(words: List<PdfWord>): String =
+        groupLines(words).joinToString("") { joinPdfWords(it) + "\n" }
 
     /**
      * Junta as palavras de uma linha. Um vao muito menor que um espaco nao e separacao de
      * palavras, e sim a fonte tendo desenhado o acento a parte ("Canció" + "n" -> "Canción").
      */
-    private fun joinWords(linha: List<Word>): String {
+    private fun joinPdfWords(linha: List<PdfWord>): String {
         val sb = StringBuilder()
-        var anterior: Word? = null
+        var anterior: PdfWord? = null
         linha.forEach { w ->
             val prev = anterior
             if (prev != null && w.x0 - prev.x1 >= GLUE_RATIO * prev.spaceWidth) sb.append(' ')

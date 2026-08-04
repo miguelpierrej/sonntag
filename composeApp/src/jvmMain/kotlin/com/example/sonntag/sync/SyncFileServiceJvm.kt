@@ -6,7 +6,7 @@ import java.io.File
 
 class SyncFileServiceJvm : SyncFileService {
 
-    override fun savePackage(
+    override suspend fun savePackage(
         defaultName: String,
         dialogTitle: String,
         filterLabel: String,
@@ -18,7 +18,7 @@ class SyncFileServiceJvm : SyncFileService {
         return file.absolutePath
     }
 
-    override fun openPackage(dialogTitle: String, filterLabel: String): ByteArray? {
+    override suspend fun openPackage(dialogTitle: String, filterLabel: String): ByteArray? {
         val path = chooseOpenPath(dialogTitle, filterLabel, PACKAGE_EXTENSION) ?: return null
         return File(path).readBytes()
     }

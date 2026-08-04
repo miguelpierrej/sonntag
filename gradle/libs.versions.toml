@@ -1,4 +1,6 @@
 [versions]
+agp = "8.13.0"
+androidx-activityCompose = "1.10.1"
 androidx-lifecycle = "2.10.0"
 composeHotReload = "1.1.0"
 composeMaterialIcons = "1.7.3"
@@ -12,6 +14,7 @@ kotlinx-datetime = "0.6.1"
 kotlinx-serialization = "1.9.0"
 material3 = "1.10.0-alpha05"
 pdfbox = "3.0.4"
+pdfboxAndroid = "2.0.27.0"
 sqldelight = "2.0.2"
 sqliteJdbc = "3.45.1.0"
 voyager = "1.1.0-beta03"
@@ -20,6 +23,8 @@ voyager = "1.1.0-beta03"
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 kotlin-testJunit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
 junit = { module = "junit:junit", version.ref = "junit" }
+androidx-activityCompose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activityCompose" }
+sqldelight-androidDriver = { module = "app.cash.sqldelight:android-driver", version.ref = "sqldelight" }
 androidx-lifecycle-viewmodelCompose = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "androidx-lifecycle" }
 androidx-lifecycle-runtimeCompose = { module = "org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose", version.ref = "androidx-lifecycle" }
 compose-runtime = { module = "org.jetbrains.compose.runtime:runtime", version.ref = "composeMultiplatform" }
@@ -44,8 +49,10 @@ sqldelight-jdbc-driver = { module = "app.cash.sqldelight:jdbc-driver", version.r
 sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqliteJdbc" }
 hikari = { module = "com.zaxxer:HikariCP", version.ref = "hikari" }
 pdfbox = { module = "org.apache.pdfbox:pdfbox", version.ref = "pdfbox" }
+pdfbox-android = { module = "com.tom-roush:pdfbox-android", version.ref = "pdfboxAndroid" }
 
 [plugins]
+androidApplication = { id = "com.android.application", version.ref = "agp" }
 composeHotReload = { id = "org.jetbrains.compose.hot-reload", version.ref = "composeHotReload" }
 composeMultiplatform = { id = "org.jetbrains.compose", version.ref = "composeMultiplatform" }
 composeCompiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }

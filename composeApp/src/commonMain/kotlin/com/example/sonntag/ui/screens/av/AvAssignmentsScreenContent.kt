@@ -1,7 +1,5 @@
 package com.example.sonntag.ui.screens.av
 
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.TooltipArea
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,6 +28,10 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.RichTooltip
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -257,34 +259,26 @@ private fun FilledCountBadge(filled: Int) {
  * Aviso de que o membro escolhido ja tem designacao na programacao desta reuniao.
  * O tooltip (hover) lista quais funcoes estao em conflito.
  */
-@OptIn(ExperimentalFoundationApi::class)
+/**
+ * TooltipBox do Material 3 no lugar do TooltipArea: aquele existe so no desktop e
+ * quebra a compilacao do Android. Este funciona nos dois, com toque longo no celular.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ConflictWarning(roles: List<String>) {
     val translatedRoles = roles.map { tr(it) }
     val detail = tr("Já designado nesta reunião como: {0}", translatedRoles.joinToString(", "))
+    val title = tr("Conflito de designação")
 
-    TooltipArea(
+    TooltipBox(
+        positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
         tooltip = {
-            Surface(
-                shape = RoundedCornerShape(6.dp),
-                color = MaterialTheme.colorScheme.inverseSurface,
-                shadowElevation = 4.dp,
-            ) {
-                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                    Text(
-                        text = tr("Conflito de designação"),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.inverseOnSurface,
-                    )
-                    Text(
-                        text = detail,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.inverseOnSurface,
-                    )
-                }
-            }
+            RichTooltip(
+                title = { Text(title) },
+                text = { Text(detail) },
+            )
         },
-        delayMillis = 250,
+        state = rememberTooltipState(isPersistent = true),
     ) {
         Icon(
             imageVector = Icons.Outlined.WarningAmber,

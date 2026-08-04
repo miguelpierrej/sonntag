@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,6 +14,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -40,6 +43,9 @@ import org.koin.compose.koinInject
 /** Quantidade maxima de reunioes pendentes listadas dentro do card. */
 private const val MAX_PENDING_PREVIEW = 3
 
+/** Abaixo disso os tres cards ficam estreitos demais e o titulo quebra letra a letra. */
+private val MIN_WIDTH_FOR_ROW = 720.dp
+
 @Composable
 fun DashboardScreenContent(onNavigate: (String) -> Unit = {}) {
     val viewModel = koinInject<DashboardViewModel>()
@@ -52,14 +58,14 @@ fun DashboardScreenContent(onNavigate: (String) -> Unit = {}) {
         title = tr("Dashboard"),
         subtitle = tr("Visão geral da congregação"),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
+        // Medimos a largura que sobra para o conteudo, nao a da janela: no tablet em
+        // pe a gaveta ja consumiu 240dp e tres colunas nao cabem mais.
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        ResponsiveCards(stacked = maxWidth < MIN_WIDTH_FOR_ROW) { cardModifier ->
             DashboardCard(
                 title = tr("Próxima reunião"),
                 icon = Icons.Outlined.CalendarMonth,
-                modifier = Modifier.weight(1f),
+                modifier = cardModifier,
                 onClick = state.nextMeeting?.let { next -> { onNavigate(next.navTarget) } },
             ) {
                 NextMeetingContent(state.nextMeeting, state.isLoading)
@@ -67,7 +73,7 @@ fun DashboardScreenContent(onNavigate: (String) -> Unit = {}) {
             DashboardCard(
                 title = tr("Limpeza da semana"),
                 icon = Icons.Outlined.CleaningServices,
-                modifier = Modifier.weight(1f),
+                modifier = cardModifier,
                 onClick = { onNavigate(NAV_CLEANING) },
             ) {
                 CleaningContent(state.cleaning, state.isLoading)
@@ -75,12 +81,32 @@ fun DashboardScreenContent(onNavigate: (String) -> Unit = {}) {
             DashboardCard(
                 title = tr("Programações pendentes"),
                 icon = Icons.Outlined.Pending,
-                modifier = Modifier.weight(1f),
+                modifier = cardModifier,
                 onClick = state.pendingItems.firstOrNull()?.let { first -> { onNavigate(first.navTarget) } },
             ) {
                 PendingContent(state.pendingItems, state.pendingWindowDays, state.isLoading)
             }
         }
+        }
+    }
+}
+
+/**
+ * Linha de cards no desktop, coluna rolavel no celular. O modifier do card vem de
+ * dentro porque `weight` so existe no escopo da Row.
+ */
+@Composable
+private fun ResponsiveCards(stacked: Boolean, content: @Composable (Modifier) -> Unit) {
+    if (stacked) {
+        Column(
+            modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) { content(Modifier.fillMaxWidth()) }
+    } else {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) { content(Modifier.weight(1f)) }
     }
 }
 

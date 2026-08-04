@@ -16,7 +16,7 @@ private val NUMBERED_TITLE = Regex("""^\s*(\d{1,3})[.)]\s*(.+)$""")
  */
 class S34ImportServiceJvm : S34ImportService {
 
-    override fun pickTalkOutlines(dialogTitle: String, filterLabel: String): List<TalkOutline>? {
+    override suspend fun pickTalkOutlines(dialogTitle: String, filterLabel: String): List<TalkOutline>? {
         val path = chooseOpenPath(dialogTitle, filterLabel, "jwpub") ?: return null
         return readOutlines(File(path))
     }
