@@ -18,12 +18,20 @@ import com.example.sonntag.imports.MwbImportService
 import com.example.sonntag.imports.createMwbImportService
 import com.example.sonntag.imports.S34ImportService
 import com.example.sonntag.imports.createS34ImportService
+import com.example.sonntag.sync.SyncCrypto
+import com.example.sonntag.sync.SyncFileService
+import com.example.sonntag.sync.createSyncFileService
+import com.example.sonntag.sync.SyncService
+import com.example.sonntag.sync.SyncStamp
+import com.example.sonntag.sync.SyncStore
+import com.example.sonntag.sync.createSyncCrypto
 import com.example.sonntag.pdf.PdfExportService
 import com.example.sonntag.pdf.createPdfExportService
 import com.example.sonntag.ui.screens.av.AvAssignmentsViewModel
 import com.example.sonntag.ui.screens.cleaning.CleaningViewModel
 import com.example.sonntag.ui.screens.cleaninggroups.CleaningGroupsViewModel
 import com.example.sonntag.ui.screens.dashboard.DashboardViewModel
+import com.example.sonntag.ui.screens.datatransfer.DataTransferViewModel
 import com.example.sonntag.ui.screens.members.MembersViewModel
 import com.example.sonntag.ui.screens.midweek.MidweekProgramsViewModel
 import com.example.sonntag.ui.screens.settings.SettingsViewModel
@@ -33,18 +41,26 @@ import org.koin.dsl.module
 
 val appModule = module {
     // Database
-    single { DatabaseFactory.createDatabase() }
+    single { DatabaseFactory.createDriver() }
+    single { DatabaseFactory.createDatabase(get()) }
+
+    // Sincronizacao (carimbo de quem/quando em toda escrita)
+    single { SyncStamp(get()) }
+    single { SyncStore(get()) }
+    single<SyncCrypto> { createSyncCrypto() }
+    single<SyncFileService> { createSyncFileService() }
+    single { SyncService(get(), get(), get(), get()) }
 
     // Repositories
-    single { SettingsRepository(get()) }
-    single { MeetingDaysRepository(get()) }
-    single { MembersRepository(get()) }
-    single { CleaningGroupsRepository(get()) }
-    single { MeetingsRepository(get()) }
-    single { WeekendProgramsRepository(get()) }
-    single { MidweekProgramsRepository(get()) }
-    single { CleaningAssignmentsRepository(get()) }
-    single { AvAssignmentsRepository(get()) }
+    single { SettingsRepository(get(), get()) }
+    single { MeetingDaysRepository(get(), get()) }
+    single { MembersRepository(get(), get()) }
+    single { CleaningGroupsRepository(get(), get()) }
+    single { MeetingsRepository(get(), get()) }
+    single { WeekendProgramsRepository(get(), get()) }
+    single { MidweekProgramsRepository(get(), get()) }
+    single { CleaningAssignmentsRepository(get(), get()) }
+    single { AvAssignmentsRepository(get(), get()) }
     single { PreferencesRepository(get()) }
     single { TalkOutlinesRepository(get()) }
 
@@ -61,6 +77,7 @@ val appModule = module {
     single { InitialSetupViewModel(get(), get(), get()) }
     single { MembersViewModel(get()) }
     single { CleaningGroupsViewModel(get()) }
+    single { DataTransferViewModel(get(), get(), get()) }
     single { DashboardViewModel(get(), get(), get(), get(), get(), get(), get(), get()) }
     single { SettingsViewModel(get(), get(), get(), get()) }
     single { WeekendProgramsViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get()) }

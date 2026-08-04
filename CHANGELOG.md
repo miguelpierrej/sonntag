@@ -8,6 +8,22 @@ versionamento segue o [Semantic Versioning](https://semver.org/lang/pt-BR/).
 O workflow de release lê a seção da versão que está sendo fechada e usa o conteúdo
 como corpo do GitHub Release — o cabeçalho precisa ser `## [x.y.z] - AAAA-MM-DD`.
 
+## [1.0.1] - UNRELEASED
+
+### Adicionado
+- Sincronização manual em Configurações › Dados: exportar os blocos escolhidos para um
+  arquivo `.sonntag` cifrado (com senha opcional) e importá-lo em outra instalação. A
+  importação mostra um resumo antes de gravar e deixa o usuário decidir registro a
+  registro o que fazer quando os dois lados mudaram.
+- Base para sincronizar dados entre instalações: cada linha das tabelas
+  compartilháveis passa a ter identidade global (`uuid`), carimbo de quando e por
+  qual dispositivo foi alterada, e exclusão lógica. Ainda não sincroniza nada — é o
+  alicerce que torna a fusão possível sem perder edições.
+
+### Corrigido
+- Programações que apontavam para reuniões já apagadas eram invisíveis no app e
+  impediam a importação de dados. A atualização remove essas linhas órfãs.
+
 ## [1.0.0] - 2026-08-04
 
 ### Adicionado

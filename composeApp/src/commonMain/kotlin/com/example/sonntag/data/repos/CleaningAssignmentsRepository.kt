@@ -1,11 +1,15 @@
 package com.example.sonntag.data.repos
 
 import com.example.sonntag.data.sqldelight.SonntagDatabase
+import com.example.sonntag.sync.SyncStamp
 import com.example.sonntag.data.sqldelight.Cleaning_assignments
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 
-class CleaningAssignmentsRepository(private val database: SonntagDatabase) {
+class CleaningAssignmentsRepository(
+    private val database: SonntagDatabase,
+    private val stamp: SyncStamp,
+) {
     fun getAll(): Flow<List<Cleaning_assignments>> {
         return flowOf(database.schemaQueries.getAllCleaningAssignments().executeAsList())
     }
@@ -19,15 +23,17 @@ class CleaningAssignmentsRepository(private val database: SonntagDatabase) {
     }
 
     fun insert(semanaIso: Long, ano: Long, groupId: Long) {
-        database.schemaQueries.insertCleaningAssignment(semanaIso, ano, groupId)
+        database.schemaQueries.insertCleaningAssignment(
+            semanaIso, ano, groupId, stamp.newRowUuid(), stamp.now(), stamp.deviceId,
+        )
     }
 
     fun update(semanaIso: Long, ano: Long, groupId: Long) {
-        database.schemaQueries.updateCleaningAssignment(groupId, semanaIso, ano)
+        database.schemaQueries.updateCleaningAssignment(groupId, stamp.now(), stamp.deviceId, semanaIso, ano)
     }
 
     fun deleteByWeek(semanaIso: Long, ano: Long) {
-        database.schemaQueries.deleteCleaningAssignmentByWeek(semanaIso, ano)
+        database.schemaQueries.deleteCleaningAssignmentByWeek(stamp.now(), stamp.deviceId, semanaIso, ano)
     }
 
     fun getAllOnce(): List<Cleaning_assignments> {
@@ -44,7 +50,10 @@ class CleaningAssignmentsRepository(private val database: SonntagDatabase) {
             return
         }
 
-        val current = getByWeekOnce(semanaIso, ano)
+        // Inclui excluidos: o UNIQUE(semana_iso, ano) impede inserir por cima de uma
+        // linha apagada — atualizar a revive.
+        val current = database.schemaQueries.getCleaningAssignmentByWeekAny(semanaIso, ano)
+            .executeAsOneOrNull()
         if (current == null) {
             insert(semanaIso, ano, groupId)
         } else {

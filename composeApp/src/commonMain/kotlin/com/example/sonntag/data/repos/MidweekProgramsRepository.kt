@@ -2,6 +2,7 @@ package com.example.sonntag.data.repos
 
 import com.example.sonntag.data.sqldelight.Midweek_programs
 import com.example.sonntag.data.sqldelight.SonntagDatabase
+import com.example.sonntag.sync.SyncStamp
 
 /**
  * Conteudo editavel de uma programacao de meio de semana (formulario S-140).
@@ -46,13 +47,19 @@ data class MidweekProgramInput(
     val oracaoFinalId: Long? = null,
 )
 
-class MidweekProgramsRepository(private val database: SonntagDatabase) {
+class MidweekProgramsRepository(
+    private val database: SonntagDatabase,
+    private val stamp: SyncStamp,
+) {
     fun getByMeetingIdOnce(meetingId: Long): Midweek_programs? {
         return database.schemaQueries.getMidweekProgramByMeetingId(meetingId).executeAsOneOrNull()
     }
 
     fun upsert(meetingId: Long, input: MidweekProgramInput) {
-        val exists = getByMeetingIdOnce(meetingId) != null
+        // Inclui excluidos: o UNIQUE(meeting_id) impede inserir por cima de uma
+        // linha apagada — atualizar a revive.
+        val exists = database.schemaQueries.getMidweekProgramByMeetingIdAny(meetingId)
+            .executeAsOneOrNull() != null
         with(input) {
             if (!exists) {
                 database.schemaQueries.insertMidweekProgram(
@@ -67,6 +74,7 @@ class MidweekProgramsRepository(private val database: SonntagDatabase) {
                     vida1Titulo, vida1Minutos, vida1Id,
                     vida2Titulo, vida2Minutos, vida2Id,
                     estudoDirigenteId, estudoLeitorId, canticoFinal, oracaoFinalId,
+                    stamp.newRowUuid(), stamp.now(), stamp.deviceId,
                 )
             } else {
                 database.schemaQueries.updateMidweekProgram(
@@ -80,6 +88,7 @@ class MidweekProgramsRepository(private val database: SonntagDatabase) {
                     vida1Titulo, vida1Minutos, vida1Id,
                     vida2Titulo, vida2Minutos, vida2Id,
                     estudoDirigenteId, estudoLeitorId, canticoFinal, oracaoFinalId,
+                    stamp.now(), stamp.deviceId,
                     meetingId,
                 )
             }
@@ -87,6 +96,6 @@ class MidweekProgramsRepository(private val database: SonntagDatabase) {
     }
 
     fun delete(meetingId: Long) {
-        database.schemaQueries.deleteMidweekProgram(meetingId)
+        database.schemaQueries.deleteMidweekProgram(stamp.now(), stamp.deviceId, meetingId)
     }
 }

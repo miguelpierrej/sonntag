@@ -3,7 +3,12 @@ CREATE TABLE settings (
     id INTEGER PRIMARY KEY DEFAULT 1,
     nome TEXT NOT NULL,
     endereco TEXT,
-    telefone TEXT
+    telefone TEXT,
+    -- Sincronizacao: identidade global, carimbo de alteracao e exclusao logica
+    uuid TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    updated_by TEXT NOT NULL,
+    deleted INTEGER NOT NULL DEFAULT 0
 );
 
 -- Preferencias simples do app (chave/valor), ex.: idioma
@@ -16,20 +21,35 @@ CREATE TABLE app_prefs (
 CREATE TABLE meeting_days (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     dia_semana INTEGER NOT NULL, -- 1=seg, 2=ter, ..., 7=dom
-    hora TEXT NOT NULL -- HH:mm
+    hora TEXT NOT NULL, -- HH:mm
+    -- Sincronizacao: identidade global, carimbo de alteracao e exclusao logica
+    uuid TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    updated_by TEXT NOT NULL,
+    deleted INTEGER NOT NULL DEFAULT 0
 );
 
 -- Membros da congregacao
 CREATE TABLE members (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     nome TEXT NOT NULL,
-    sobrenome TEXT NOT NULL
+    sobrenome TEXT NOT NULL,
+    -- Sincronizacao: identidade global, carimbo de alteracao e exclusao logica
+    uuid TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    updated_by TEXT NOT NULL,
+    deleted INTEGER NOT NULL DEFAULT 0
 );
 
 -- Grupos de limpeza
 CREATE TABLE cleaning_groups (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    nome TEXT NOT NULL UNIQUE
+    nome TEXT NOT NULL UNIQUE,
+    -- Sincronizacao: identidade global, carimbo de alteracao e exclusao logica
+    uuid TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    updated_by TEXT NOT NULL,
+    deleted INTEGER NOT NULL DEFAULT 0
 );
 
 -- Reunioes agendadas
@@ -37,7 +57,12 @@ CREATE TABLE meetings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     data TEXT NOT NULL, -- yyyy-MM-dd
     hora TEXT NOT NULL, -- HH:mm
-    tipo TEXT NOT NULL -- WEEKDAY ou WEEKEND
+    tipo TEXT NOT NULL, -- WEEKDAY ou WEEKEND
+    -- Sincronizacao: identidade global, carimbo de alteracao e exclusao logica
+    uuid TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    updated_by TEXT NOT NULL,
+    deleted INTEGER NOT NULL DEFAULT 0
 );
 
 -- Programacao de discursos nas reunioes de fim de semana
@@ -50,6 +75,11 @@ CREATE TABLE weekend_programs (
     presidente_id INTEGER,
     dirigente_id INTEGER,
     leitor_id INTEGER,
+    -- Sincronizacao: identidade global, carimbo de alteracao e exclusao logica
+    uuid TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    updated_by TEXT NOT NULL,
+    deleted INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE,
     FOREIGN KEY (orador_id) REFERENCES members(id) ON DELETE SET NULL,
     FOREIGN KEY (presidente_id) REFERENCES members(id) ON DELETE SET NULL,
@@ -101,6 +131,11 @@ CREATE TABLE midweek_programs (
     estudo_leitor_id INTEGER,
     cantico_final TEXT,
     oracao_final_id INTEGER,
+    -- Sincronizacao: identidade global, carimbo de alteracao e exclusao logica
+    uuid TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    updated_by TEXT NOT NULL,
+    deleted INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE
 );
 
@@ -110,6 +145,11 @@ CREATE TABLE cleaning_assignments (
     semana_iso INTEGER NOT NULL,
     ano INTEGER NOT NULL,
     group_id INTEGER NOT NULL,
+    -- Sincronizacao: identidade global, carimbo de alteracao e exclusao logica
+    uuid TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    updated_by TEXT NOT NULL,
+    deleted INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY (group_id) REFERENCES cleaning_groups(id) ON DELETE CASCADE,
     UNIQUE(semana_iso, ano)
 );
@@ -126,6 +166,11 @@ CREATE TABLE av_assignments (
     microfone2_id INTEGER,
     acomodador1_id INTEGER,
     acomodador2_id INTEGER,
+    -- Sincronizacao: identidade global, carimbo de alteracao e exclusao logica
+    uuid TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    updated_by TEXT NOT NULL,
+    deleted INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE
 );
 
@@ -135,17 +180,41 @@ CREATE TABLE talk_outlines (
     titulo TEXT NOT NULL
 );
 
+-- Um uuid nunca se repete: e a identidade da linha entre maquinas
+CREATE UNIQUE INDEX settings_uuid ON settings(uuid);
+CREATE UNIQUE INDEX meeting_days_uuid ON meeting_days(uuid);
+CREATE UNIQUE INDEX members_uuid ON members(uuid);
+CREATE UNIQUE INDEX cleaning_groups_uuid ON cleaning_groups(uuid);
+CREATE UNIQUE INDEX meetings_uuid ON meetings(uuid);
+CREATE UNIQUE INDEX weekend_programs_uuid ON weekend_programs(uuid);
+CREATE UNIQUE INDEX midweek_programs_uuid ON midweek_programs(uuid);
+CREATE UNIQUE INDEX cleaning_assignments_uuid ON cleaning_assignments(uuid);
+CREATE UNIQUE INDEX av_assignments_uuid ON av_assignments(uuid);
+
+-- Conflitos detectados na fusao, aguardando decisao do usuario
+CREATE TABLE sync_conflicts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tabela TEXT NOT NULL,
+    row_uuid TEXT NOT NULL,
+    local_json TEXT NOT NULL,
+    remoto_json TEXT NOT NULL,
+    remoto_device TEXT NOT NULL,
+    detectado_em TEXT NOT NULL,
+    resolvido INTEGER NOT NULL DEFAULT 0,
+    UNIQUE(tabela, row_uuid)
+);
+
 -- Queries basicas
 
 getSettings:
-SELECT * FROM settings WHERE id = 1;
+SELECT * FROM settings WHERE id = 1 AND deleted = 0;
 
 insertSettings:
-INSERT OR REPLACE INTO settings (id, nome, endereco, telefone)
-VALUES (1, ?, ?, ?);
+INSERT OR REPLACE INTO settings (id, nome, endereco, telefone, uuid, updated_at, updated_by, deleted)
+VALUES (1, ?, ?, ?, ?, ?, ?, 0);
 
 deleteSettings:
-DELETE FROM settings WHERE id = 1;
+UPDATE settings SET deleted = 1, updated_at = ?, updated_by = ? WHERE id = 1;
 
 -- App prefs queries
 
@@ -158,122 +227,135 @@ INSERT OR REPLACE INTO app_prefs (chave, valor) VALUES (?, ?);
 -- Meeting days queries
 
 getAllMeetingDays:
-SELECT * FROM meeting_days ORDER BY dia_semana ASC;
+SELECT * FROM meeting_days WHERE deleted = 0 ORDER BY dia_semana ASC;
 
 getMeetingDayById:
-SELECT * FROM meeting_days WHERE id = ?;
+SELECT * FROM meeting_days WHERE id = ? AND deleted = 0;
 
 insertMeetingDay:
-INSERT INTO meeting_days (dia_semana, hora) VALUES (?, ?);
+INSERT INTO meeting_days (dia_semana, hora, uuid, updated_at, updated_by) VALUES (?, ?, ?, ?, ?);
 
 updateMeetingDay:
-UPDATE meeting_days SET dia_semana = ?, hora = ? WHERE id = ?;
+UPDATE meeting_days SET dia_semana = ?, hora = ?, updated_at = ?, updated_by = ?, deleted = 0 WHERE id = ?;
 
 deleteMeetingDay:
-DELETE FROM meeting_days WHERE id = ?;
+UPDATE meeting_days SET deleted = 1, updated_at = ?, updated_by = ? WHERE id = ?;
 
 deleteAllMeetingDays:
-DELETE FROM meeting_days;
+UPDATE meeting_days SET deleted = 1, updated_at = ?, updated_by = ? WHERE deleted = 0;
 
 -- Members queries
 
 getAllMembers:
-SELECT * FROM members ORDER BY nome ASC, sobrenome ASC;
+SELECT * FROM members WHERE deleted = 0 ORDER BY nome ASC, sobrenome ASC;
 
 getMemberById:
-SELECT * FROM members WHERE id = ?;
+SELECT * FROM members WHERE id = ? AND deleted = 0;
 
 insertMember:
-INSERT INTO members (nome, sobrenome) VALUES (?, ?);
+INSERT INTO members (nome, sobrenome, uuid, updated_at, updated_by) VALUES (?, ?, ?, ?, ?);
 
 updateMember:
-UPDATE members SET nome = ?, sobrenome = ? WHERE id = ?;
+UPDATE members SET nome = ?, sobrenome = ?, updated_at = ?, updated_by = ?, deleted = 0 WHERE id = ?;
 
 deleteMember:
-DELETE FROM members WHERE id = ?;
+UPDATE members SET deleted = 1, updated_at = ?, updated_by = ? WHERE id = ?;
 
 -- Cleaning groups queries
 
 getAllCleaningGroups:
-SELECT * FROM cleaning_groups ORDER BY nome ASC;
+SELECT * FROM cleaning_groups WHERE deleted = 0 ORDER BY nome ASC;
 
 getCleaningGroupById:
-SELECT * FROM cleaning_groups WHERE id = ?;
+SELECT * FROM cleaning_groups WHERE id = ? AND deleted = 0;
+
+-- Inclui excluidos: o UNIQUE(nome) exige reviver a linha em vez de inserir outra
+getCleaningGroupByNameAny:
+SELECT * FROM cleaning_groups WHERE nome = ?;
 
 insertCleaningGroup:
-INSERT INTO cleaning_groups (nome) VALUES (?);
+INSERT INTO cleaning_groups (nome, uuid, updated_at, updated_by) VALUES (?, ?, ?, ?);
 
 updateCleaningGroup:
-UPDATE cleaning_groups SET nome = ? WHERE id = ?;
+UPDATE cleaning_groups SET nome = ?, updated_at = ?, updated_by = ?, deleted = 0 WHERE id = ?;
 
 deleteCleaningGroup:
-DELETE FROM cleaning_groups WHERE id = ?;
+UPDATE cleaning_groups SET deleted = 1, updated_at = ?, updated_by = ? WHERE id = ?;
 
 -- Meetings queries
 
 getAllMeetings:
-SELECT * FROM meetings ORDER BY data ASC, hora ASC;
+SELECT * FROM meetings WHERE deleted = 0 ORDER BY data ASC, hora ASC;
 
 getMeetingById:
-SELECT * FROM meetings WHERE id = ?;
+SELECT * FROM meetings WHERE id = ? AND deleted = 0;
 
 getMeetingsByType:
-SELECT * FROM meetings WHERE tipo = ? ORDER BY data ASC, hora ASC;
+SELECT * FROM meetings WHERE tipo = ? AND deleted = 0 ORDER BY data ASC, hora ASC;
 
 insertMeeting:
-INSERT INTO meetings (data, hora, tipo) VALUES (?, ?, ?);
+INSERT INTO meetings (data, hora, tipo, uuid, updated_at, updated_by) VALUES (?, ?, ?, ?, ?, ?);
 
 updateMeeting:
-UPDATE meetings SET data = ?, hora = ?, tipo = ? WHERE id = ?;
+UPDATE meetings SET data = ?, hora = ?, tipo = ?, updated_at = ?, updated_by = ?, deleted = 0 WHERE id = ?;
 
 deleteMeeting:
-DELETE FROM meetings WHERE id = ?;
+UPDATE meetings SET deleted = 1, updated_at = ?, updated_by = ? WHERE id = ?;
 
 getMeetingsByDateRange:
-SELECT * FROM meetings WHERE data >= ? AND data <= ? ORDER BY data ASC, hora ASC;
+SELECT * FROM meetings WHERE data >= ? AND data <= ? AND deleted = 0 ORDER BY data ASC, hora ASC;
 
 getFutureMeetings:
-SELECT * FROM meetings WHERE data > ? ORDER BY data ASC, hora ASC;
+SELECT * FROM meetings WHERE data > ? AND deleted = 0 ORDER BY data ASC, hora ASC;
 
 getFutureMeetingsWithProgram:
 SELECT meetings.*
 FROM meetings
 INNER JOIN weekend_programs ON weekend_programs.meeting_id = meetings.id
-WHERE meetings.data > ?
+WHERE meetings.data > ? AND meetings.deleted = 0 AND weekend_programs.deleted = 0
 ORDER BY meetings.data ASC, meetings.hora ASC;
 
 deleteFutureMeetingsWithoutProgram:
-DELETE FROM meetings
+UPDATE meetings SET deleted = 1, updated_at = ?, updated_by = ?
 WHERE data > ?
+  AND deleted = 0
   AND id NOT IN (
-    SELECT meeting_id FROM weekend_programs
+    SELECT meeting_id FROM weekend_programs WHERE deleted = 0
   );
 
 -- Weekend programs queries
 
 getAllWeekendPrograms:
-SELECT * FROM weekend_programs ORDER BY id ASC;
+SELECT * FROM weekend_programs WHERE deleted = 0 ORDER BY id ASC;
 
 getWeekendProgramByMeetingId:
+SELECT * FROM weekend_programs WHERE meeting_id = ? AND deleted = 0;
+
+-- Inclui excluidos: o UNIQUE(meeting_id) exige reviver a linha em vez de inserir outra
+getWeekendProgramByMeetingIdAny:
 SELECT * FROM weekend_programs WHERE meeting_id = ?;
 
 insertWeekendProgram:
-INSERT INTO weekend_programs (meeting_id, titulo_discurso, orador_id, orador_nome, presidente_id, dirigente_id, leitor_id)
-VALUES (?, ?, ?, ?, ?, ?, ?);
+INSERT INTO weekend_programs (meeting_id, titulo_discurso, orador_id, orador_nome, presidente_id, dirigente_id, leitor_id, uuid, updated_at, updated_by)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 updateWeekendProgram:
-UPDATE weekend_programs SET titulo_discurso = ?, orador_id = ?, orador_nome = ?, presidente_id = ?, dirigente_id = ?, leitor_id = ?
+UPDATE weekend_programs SET titulo_discurso = ?, orador_id = ?, orador_nome = ?, presidente_id = ?, dirigente_id = ?, leitor_id = ?, updated_at = ?, updated_by = ?, deleted = 0
 WHERE meeting_id = ?;
 
 deleteWeekendProgram:
-DELETE FROM weekend_programs WHERE meeting_id = ?;
+UPDATE weekend_programs SET deleted = 1, updated_at = ?, updated_by = ? WHERE meeting_id = ?;
 
 -- Midweek programs queries
 
 getAllMidweekPrograms:
-SELECT * FROM midweek_programs ORDER BY id ASC;
+SELECT * FROM midweek_programs WHERE deleted = 0 ORDER BY id ASC;
 
 getMidweekProgramByMeetingId:
+SELECT * FROM midweek_programs WHERE meeting_id = ? AND deleted = 0;
+
+-- Inclui excluidos: o UNIQUE(meeting_id) exige reviver a linha em vez de inserir outra
+getMidweekProgramByMeetingIdAny:
 SELECT * FROM midweek_programs WHERE meeting_id = ?;
 
 insertMidweekProgram:
@@ -288,7 +370,8 @@ INSERT INTO midweek_programs (
     cantico_meio,
     vida1_titulo, vida1_minutos, vida1_id,
     vida2_titulo, vida2_minutos, vida2_id,
-    estudo_dirigente_id, estudo_leitor_id, cantico_final, oracao_final_id
+    estudo_dirigente_id, estudo_leitor_id, cantico_final, oracao_final_id,
+    uuid, updated_at, updated_by
 )
 VALUES (
     ?,
@@ -301,7 +384,8 @@ VALUES (
     ?,
     ?, ?, ?,
     ?, ?, ?,
-    ?, ?, ?, ?
+    ?, ?, ?, ?,
+    ?, ?, ?
 );
 
 updateMidweekProgram:
@@ -315,31 +399,36 @@ UPDATE midweek_programs SET
     cantico_meio = ?,
     vida1_titulo = ?, vida1_minutos = ?, vida1_id = ?,
     vida2_titulo = ?, vida2_minutos = ?, vida2_id = ?,
-    estudo_dirigente_id = ?, estudo_leitor_id = ?, cantico_final = ?, oracao_final_id = ?
+    estudo_dirigente_id = ?, estudo_leitor_id = ?, cantico_final = ?, oracao_final_id = ?,
+    updated_at = ?, updated_by = ?, deleted = 0
 WHERE meeting_id = ?;
 
 deleteMidweekProgram:
-DELETE FROM midweek_programs WHERE meeting_id = ?;
+UPDATE midweek_programs SET deleted = 1, updated_at = ?, updated_by = ? WHERE meeting_id = ?;
 
 -- Cleaning assignments queries
 
 getAllCleaningAssignments:
-SELECT * FROM cleaning_assignments ORDER BY ano ASC, semana_iso ASC;
+SELECT * FROM cleaning_assignments WHERE deleted = 0 ORDER BY ano ASC, semana_iso ASC;
 
 getCleaningAssignmentByWeek:
+SELECT * FROM cleaning_assignments WHERE semana_iso = ? AND ano = ? AND deleted = 0;
+
+-- Inclui excluidos: o UNIQUE(semana_iso, ano) exige reviver a linha em vez de inserir outra
+getCleaningAssignmentByWeekAny:
 SELECT * FROM cleaning_assignments WHERE semana_iso = ? AND ano = ?;
 
 getCleaningAssignmentsByYear:
-SELECT * FROM cleaning_assignments WHERE ano = ? ORDER BY semana_iso ASC;
+SELECT * FROM cleaning_assignments WHERE ano = ? AND deleted = 0 ORDER BY semana_iso ASC;
 
 insertCleaningAssignment:
-INSERT INTO cleaning_assignments (semana_iso, ano, group_id) VALUES (?, ?, ?);
+INSERT INTO cleaning_assignments (semana_iso, ano, group_id, uuid, updated_at, updated_by) VALUES (?, ?, ?, ?, ?, ?);
 
 updateCleaningAssignment:
-UPDATE cleaning_assignments SET group_id = ? WHERE semana_iso = ? AND ano = ?;
+UPDATE cleaning_assignments SET group_id = ?, updated_at = ?, updated_by = ?, deleted = 0 WHERE semana_iso = ? AND ano = ?;
 
 deleteCleaningAssignmentByWeek:
-DELETE FROM cleaning_assignments WHERE semana_iso = ? AND ano = ?;
+UPDATE cleaning_assignments SET deleted = 1, updated_at = ?, updated_by = ? WHERE semana_iso = ? AND ano = ?;
 
 -- Talk outlines queries (S-34)
 
@@ -355,9 +444,13 @@ DELETE FROM talk_outlines;
 -- AV assignments queries
 
 getAllAvAssignments:
-SELECT * FROM av_assignments ORDER BY id ASC;
+SELECT * FROM av_assignments WHERE deleted = 0 ORDER BY id ASC;
 
 getAvAssignmentByMeetingId:
+SELECT * FROM av_assignments WHERE meeting_id = ? AND deleted = 0;
+
+-- Inclui excluidos: o UNIQUE(meeting_id) exige reviver a linha em vez de inserir outra
+getAvAssignmentByMeetingIdAny:
 SELECT * FROM av_assignments WHERE meeting_id = ?;
 
 insertAvAssignment:
@@ -366,19 +459,21 @@ INSERT INTO av_assignments (
     audio_id, video_id,
     plataforma1_id, plataforma2_id,
     microfone1_id, microfone2_id,
-    acomodador1_id, acomodador2_id
+    acomodador1_id, acomodador2_id,
+    uuid, updated_at, updated_by
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 updateAvAssignment:
 UPDATE av_assignments SET
     audio_id = ?, video_id = ?,
     plataforma1_id = ?, plataforma2_id = ?,
     microfone1_id = ?, microfone2_id = ?,
-    acomodador1_id = ?, acomodador2_id = ?
+    acomodador1_id = ?, acomodador2_id = ?,
+    updated_at = ?, updated_by = ?, deleted = 0
 WHERE meeting_id = ?;
 
 deleteAvAssignment:
-DELETE FROM av_assignments WHERE meeting_id = ?;
+UPDATE av_assignments SET deleted = 1, updated_at = ?, updated_by = ? WHERE meeting_id = ?;
 
 

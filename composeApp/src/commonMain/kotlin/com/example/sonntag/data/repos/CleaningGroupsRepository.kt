@@ -1,6 +1,7 @@
 package com.example.sonntag.data.repos
 
 import com.example.sonntag.data.sqldelight.SonntagDatabase
+import com.example.sonntag.sync.SyncStamp
 import com.example.sonntag.data.sqldelight.Cleaning_groups
 import app.cash.sqldelight.coroutines.asFlow
 import app.cash.sqldelight.coroutines.mapToList
@@ -8,7 +9,10 @@ import app.cash.sqldelight.coroutines.mapToOneOrNull
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 
-class CleaningGroupsRepository(private val database: SonntagDatabase) {
+class CleaningGroupsRepository(
+    private val database: SonntagDatabase,
+    private val stamp: SyncStamp,
+) {
     fun getAll(): Flow<List<Cleaning_groups>> {
         return database.schemaQueries
             .getAllCleaningGroups()
@@ -24,15 +28,22 @@ class CleaningGroupsRepository(private val database: SonntagDatabase) {
     }
 
     fun insert(nome: String) {
-        database.schemaQueries.insertCleaningGroup(nome)
+        // UNIQUE(nome): se um grupo com esse nome foi excluido, reviva-o em vez de
+        // inserir outro — a insercao esbarraria na constraint.
+        val existing = database.schemaQueries.getCleaningGroupByNameAny(nome).executeAsOneOrNull()
+        if (existing != null) {
+            database.schemaQueries.updateCleaningGroup(nome, stamp.now(), stamp.deviceId, existing.id)
+        } else {
+            database.schemaQueries.insertCleaningGroup(nome, stamp.newRowUuid(), stamp.now(), stamp.deviceId)
+        }
     }
 
     fun update(id: Long, nome: String) {
-        database.schemaQueries.updateCleaningGroup(nome, id)
+        database.schemaQueries.updateCleaningGroup(nome, stamp.now(), stamp.deviceId, id)
     }
 
     fun delete(id: Long) {
-        database.schemaQueries.deleteCleaningGroup(id)
+        database.schemaQueries.deleteCleaningGroup(stamp.now(), stamp.deviceId, id)
     }
 
     fun getAllOnce(): List<Cleaning_groups> {
