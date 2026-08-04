@@ -133,17 +133,17 @@ data class AvSchedulePdfData(
 )
 
 interface PdfExportService {
-    fun exportMeetingProgram(data: MeetingProgramPdfData): Boolean
-    fun exportWeeklyProgram(data: WeeklyProgramPdfData): Boolean
-    fun exportMonthlyProgram(data: MonthlyProgramPdfData): Boolean
-    fun exportMeetingProgramPng(data: MeetingProgramPdfData): Boolean
-    fun exportWeeklyProgramPng(data: WeeklyProgramPdfData): Boolean
-    fun exportMonthlyProgramPng(data: MonthlyProgramPdfData): Boolean
-    fun exportCleaningSchedule(data: CleaningSchedulePdfData): Boolean
-    fun exportCleaningSchedulePng(data: CleaningSchedulePdfData): Boolean
-    fun exportMidweekProgram(data: MidweekProgramPdfData): Boolean
-    fun exportMidweekAssignments(data: MidweekAssignmentsPdfData): Boolean
-    fun exportAvSchedule(data: AvSchedulePdfData): Boolean
+    suspend fun exportMeetingProgram(data: MeetingProgramPdfData): Boolean
+    suspend fun exportWeeklyProgram(data: WeeklyProgramPdfData): Boolean
+    suspend fun exportMonthlyProgram(data: MonthlyProgramPdfData): Boolean
+    suspend fun exportMeetingProgramPng(data: MeetingProgramPdfData): Boolean
+    suspend fun exportWeeklyProgramPng(data: WeeklyProgramPdfData): Boolean
+    suspend fun exportMonthlyProgramPng(data: MonthlyProgramPdfData): Boolean
+    suspend fun exportCleaningSchedule(data: CleaningSchedulePdfData): Boolean
+    suspend fun exportCleaningSchedulePng(data: CleaningSchedulePdfData): Boolean
+    suspend fun exportMidweekProgram(data: MidweekProgramPdfData): Boolean
+    suspend fun exportMidweekAssignments(data: MidweekAssignmentsPdfData): Boolean
+    suspend fun exportAvSchedule(data: AvSchedulePdfData): Boolean
 }
 
 expect fun createPdfExportService(): PdfExportService

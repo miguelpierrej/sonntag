@@ -1,5 +1,7 @@
 package com.example.sonntag.ui.components
 
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -18,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import com.example.sonntag.ui.layout.LocalWindowSize
 
 private val ScreenPadding = 24.dp
 
@@ -55,6 +58,11 @@ fun ScreenHeader(
     leadingIcon: ImageVector? = null,
     actions: @Composable (() -> Unit)? = null,
 ) {
+    // Num celular titulo e botoes nao cabem na mesma linha: as acoes descem para
+    // uma faixa propria, rolavel na horizontal quando forem muitas.
+    val stacked = LocalWindowSize.current.isCompact
+
+    Column(modifier = Modifier.fillMaxWidth()) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -83,7 +91,7 @@ fun ScreenHeader(
                 )
             }
         }
-        if (actions != null) {
+        if (actions != null && !stacked) {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -91,5 +99,16 @@ fun ScreenHeader(
                 actions()
             }
         }
+    }
+    if (actions != null && stacked) {
+        Spacer(modifier = Modifier.height(12.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            actions()
+        }
+    }
     }
 }

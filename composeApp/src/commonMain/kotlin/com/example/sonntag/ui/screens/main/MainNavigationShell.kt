@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -24,19 +25,29 @@ import androidx.compose.material.icons.outlined.CleaningServices
 import androidx.compose.material.icons.outlined.Dashboard
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Headphones
+import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Weekend
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -49,7 +60,10 @@ import androidx.compose.ui.unit.dp
 import com.example.sonntag.data.repos.SettingsRepository
 import com.example.sonntag.data.sqldelight.Settings
 import com.example.sonntag.i18n.tr
+import com.example.sonntag.ui.layout.LocalWindowSize
+import com.example.sonntag.ui.layout.WindowSize
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.compose.koinInject
 
@@ -125,18 +139,83 @@ fun MainNavigationShell() {
     }
 
     val selected = allItems.firstOrNull { it.id == selectedId } ?: allItems.first()
+    val congregationName = settings?.nome?.ifBlank { null } ?: DEFAULT_TITLE
+    val congregationSubtitle = settings?.endereco?.let { addressSummary(it) }
 
-    Row(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        AppNavigationDrawer(
-            entries = entries,
-            selectedId = selected.id,
-            onItemSelected = { selectedId = it },
-            congregationName = settings?.nome?.ifBlank { null } ?: DEFAULT_TITLE,
-            congregationSubtitle = settings?.endereco?.let { addressSummary(it) },
-        )
+    BoxWithConstraints(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        val windowSize = WindowSize.fromWidth(maxWidth)
 
-        Box(modifier = Modifier.fillMaxSize()) {
-            selected.content()
+        CompositionLocalProvider(LocalWindowSize provides windowSize) {
+            if (windowSize.isCompact) {
+                // Num celular a gaveta fixa comeria mais da metade da largura:
+                // vira gaveta sobreposta, aberta pelo botao da barra superior.
+                CompactShell(
+                    entries = entries,
+                    selected = selected,
+                    onItemSelected = { selectedId = it },
+                    congregationName = congregationName,
+                    congregationSubtitle = congregationSubtitle,
+                )
+            } else {
+                Row(modifier = Modifier.fillMaxSize()) {
+                    AppNavigationDrawer(
+                        entries = entries,
+                        selectedId = selected.id,
+                        onItemSelected = { selectedId = it },
+                        congregationName = congregationName,
+                        congregationSubtitle = congregationSubtitle,
+                    )
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        selected.content()
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CompactShell(
+    entries: List<NavEntry>,
+    selected: NavItem,
+    onItemSelected: (String) -> Unit,
+    congregationName: String,
+    congregationSubtitle: String?,
+) {
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet {
+                AppNavigationDrawer(
+                    entries = entries,
+                    selectedId = selected.id,
+                    onItemSelected = {
+                        onItemSelected(it)
+                        scope.launch { drawerState.close() }
+                    },
+                    congregationName = congregationName,
+                    congregationSubtitle = congregationSubtitle,
+                    modifier = Modifier.fillMaxHeight().fillMaxWidth(),
+                )
+            }
+        },
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            TopAppBar(
+                title = { Text(congregationName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                navigationIcon = {
+                    IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                        Icon(Icons.Outlined.Menu, contentDescription = tr("Menu"))
+                    }
+                },
+            )
+            Box(modifier = Modifier.fillMaxSize()) {
+                selected.content()
+            }
         }
     }
 }
@@ -157,11 +236,10 @@ private fun AppNavigationDrawer(
     onItemSelected: (String) -> Unit,
     congregationName: String,
     congregationSubtitle: String?,
+    modifier: Modifier = Modifier.fillMaxHeight().width(DrawerWidth),
 ) {
     Surface(
-        modifier = Modifier
-            .fillMaxHeight()
-            .width(DrawerWidth),
+        modifier = modifier,
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 1.dp,
     ) {

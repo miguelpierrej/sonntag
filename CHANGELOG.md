@@ -8,6 +8,19 @@ versionamento segue o [Semantic Versioning](https://semver.org/lang/pt-BR/).
 O workflow de release lê a seção da versão que está sendo fechada e usa o conteúdo
 como corpo do GitHub Release — o cabeçalho precisa ser `## [x.y.z] - AAAA-MM-DD`.
 
+## [1.0.2] - UNRELEASED
+
+### Adicionado
+- Aplicativo Android para celular e tablet, com a mesma base de código do desktop.
+  A interface se adapta ao tamanho da tela, os PDFs são gerados no aparelho (dá para
+  imprimir ou compartilhar pelo próprio sistema) e a troca de dados por arquivo
+  `.sonntag` funciona entre celular e computador. O APK sai no mesmo Release.
+
+### Alterado
+- A interface se adapta à largura disponível: em janelas estreitas o menu vira gaveta
+  sobreposta, os cards do painel empilham e as telas de programação passam de duas
+  colunas para lista e detalhe separados.
+
 ## [1.0.1] - 2026-08-04
 
 ### Adicionado

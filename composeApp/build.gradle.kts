@@ -1,6 +1,7 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 
 plugins {
+    alias(libs.plugins.androidApplication)
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
@@ -16,8 +17,25 @@ configurations.configureEach {
     )
 }
 
+val appName = "Sonntag"
+
+/** Vem de gradle.properties; o CI sobrepoe com -PappVersion=<x.y.z> no release. */
+val appVersion: String = providers.gradleProperty("appVersion").getOrElse("1.0.0")
+
+/**
+ * Fixo: e o que permite ao MSI atualizar a versao instalada no lugar de instalar
+ * uma copia paralela. Nao mude entre releases.
+ */
+val appUpgradeUuid = "8f3c1d64-2c7a-4c0e-9a5b-6d1f7e2b9c34"
+
 kotlin {
     jvm()
+
+    androidTarget {
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        }
+    }
 
     sourceSets {
         commonMain.dependencies {
@@ -44,6 +62,13 @@ kotlin {
         commonTest.dependencies {
             implementation(libs.kotlin.test)
         }
+        androidMain.dependencies {
+            implementation(compose.preview)
+            implementation(libs.androidx.activityCompose)
+            implementation(libs.sqldelight.androidDriver)
+            // Port do PDFBox 2 para Android: o PDFBox oficial depende de java.awt.
+            implementation(libs.pdfbox.android)
+        }
         jvmMain.dependencies {
              implementation(compose.desktop.currentOs)
              implementation(libs.kotlinx.coroutinesSwing)
@@ -56,6 +81,33 @@ kotlin {
     }
 }
 
+android {
+    namespace = "com.example.sonntag"
+    compileSdk = 35
+
+    defaultConfig {
+        applicationId = "com.example.sonntag"
+        // 26 e o piso do java.util.Base64 e do java.time usados no pacote de dados.
+        minSdk = 26
+        targetSdk = 35
+        // Derivado da versao: o Android so aceita instalar por cima quando este
+        // numero cresce. 1.2.3 -> 10203.
+        versionCode = appVersion.split(".").let { (maior, menor, correcao) ->
+            maior.toInt() * 10000 + menor.toInt() * 100 + correcao.toInt()
+        }
+        versionName = appVersion
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    packaging {
+        resources.excludes += setOf("META-INF/*")
+    }
+}
+
 sqldelight {
     databases {
         create("SonntagDatabase") {
@@ -65,16 +117,6 @@ sqldelight {
 }
 
 
-val appName = "Sonntag"
-
-/** Vem de gradle.properties; o CI sobrepoe com -PappVersion=<x.y.z> no release. */
-val appVersion: String = providers.gradleProperty("appVersion").getOrElse("1.0.0")
-
-/**
- * Fixo: e o que permite ao MSI atualizar a versao instalada no lugar de instalar
- * uma copia paralela. Nao mude entre releases.
- */
-val appUpgradeUuid = "8f3c1d64-2c7a-4c0e-9a5b-6d1f7e2b9c34"
 
 compose.desktop {
     application {
@@ -154,4 +196,12 @@ tasks.register<JavaExec>("exportAppIcon") {
     classpath = jvmMain.output.allOutputs + jvmMain.runtimeDependencyFiles
     mainClass.set("com.example.sonntag.tools.ExportAppIconKt")
     args(project.file("icons").absolutePath)
+}
+
+tasks.register<JavaExec>("renderScreens") {
+    val jvmMain = kotlin.jvm().compilations.getByName("main")
+    dependsOn(jvmMain.compileTaskProvider)
+    classpath = jvmMain.output.allOutputs + jvmMain.runtimeDependencyFiles
+    mainClass.set("com.example.sonntag.tools.RenderScreensKt")
+    args(System.getenv("OUT_DIR") ?: "/tmp/screens", System.getenv("SCREEN") ?: "painel")
 }

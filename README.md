@@ -35,9 +35,11 @@ Descargue el instalador de la versión más reciente en la página de
 | ------- | ------- |
 | Windows | `Sonntag-<versión>.msi` |
 | Linux (Debian/Ubuntu) | `sonntag_<versión>_amd64.deb` |
+| Android (teléfono y tableta) | `Sonntag-<versión>-debug.apk` |
 
 En Windows el instalador crea el acceso directo en el menú Inicio y pregunta si desea
-uno en el escritorio. En Linux: `sudo dpkg -i sonntag_<versión>_amd64.deb`.
+uno en el escritorio. En Linux: `sudo dpkg -i sonntag_<versión>_amd64.deb`. En Android,
+abra el APK en el teléfono y permita la instalación de orígenes desconocidos.
 
 ## Primeros pasos
 
@@ -77,6 +79,7 @@ Requiere **JDK 17**. Kotlin Multiplatform con Compose Multiplatform (solo escrit
 ./gradlew :composeApp:packageMsi     # instalador .msi (en Windows)
 ./gradlew :composeApp:packageMsiWithPrompt  # .msi que pregunta por los accesos directos (el del Release)
 ./gradlew :composeApp:exportAppIcon  # regenerar el ícono desde AppIcon.kt
+./gradlew assembleDebug              # APK de Android (requiere el SDK de Android)
 ```
 
 Los instaladores solo se generan en el sistema de destino: jpackage no compila para

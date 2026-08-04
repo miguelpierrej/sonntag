@@ -24,6 +24,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material.icons.outlined.UploadFile
@@ -49,6 +50,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,6 +63,7 @@ import com.example.sonntag.data.sqldelight.Members
 import com.example.sonntag.ui.components.EmptyState
 import com.example.sonntag.ui.components.MonthNavigator
 import com.example.sonntag.ui.components.ScreenScaffold
+import com.example.sonntag.ui.layout.LocalWindowSize
 import kotlinx.coroutines.yield
 import org.koin.compose.koinInject
 
@@ -131,65 +134,115 @@ fun MidweekProgramsScreenContent() {
             return@ScreenScaffold
         }
 
-        Row(modifier = Modifier.fillMaxSize()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .width(LeftColumnWidth),
-            ) {
-                MonthNavigator(
-                    year = state.visibleYear,
-                    month = state.visibleMonth,
-                    onPrev = viewModel::showPreviousMonth,
-                    onNext = viewModel::showNextMonth,
+        val compact = LocalWindowSize.current.isCompact
+        // No celular a lista e o editor nao cabem lado a lado: viram duas etapas.
+        var showingDetail by rememberSaveable { mutableStateOf(false) }
+        val detailVisible = selected != null && selectedIsInVisibleMonth
+
+        val lista = @Composable { modifier: Modifier ->
+            MeetingListPane(
+                modifier = modifier,
+                meetings = visibleMeetings,
+                selectedId = state.selectedMeetingId,
+                year = state.visibleYear,
+                month = state.visibleMonth,
+                onPrev = viewModel::showPreviousMonth,
+                onNext = viewModel::showNextMonth,
+                onSelect = {
+                    viewModel.selectMeeting(it)
+                    showingDetail = true
+                },
+            )
+        }
+
+        val editor = @Composable {
+            if (!detailVisible) {
+                EmptyState(
+                    icon = Icons.AutoMirrored.Outlined.MenuBook,
+                    title = tr("Selecione uma reunião para editar"),
+                    description = tr("Escolha uma reunião na lista ao lado para preencher a programação de meio de semana."),
                 )
-                Spacer(modifier = Modifier.height(12.dp))
-                if (visibleMeetings.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(tr("Nenhuma reunião neste mês"),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        items(visibleMeetings, key = { it.id }) { item ->
-                            MeetingListItem(
-                                item = item,
-                                selected = item.id == state.selectedMeetingId,
-                                onClick = { viewModel.selectMeeting(item.id) },
-                            )
-                        }
-                    }
-                }
+            } else {
+                ProgramEditor(
+                    item = selected!!,
+                    form = state.form,
+                    members = state.members,
+                    isReadOnly = state.isReadOnly,
+                    onUpdate = viewModel::updateForm,
+                )
             }
+        }
 
-            Spacer(modifier = Modifier.width(24.dp))
+        if (compact) {
+            if (showingDetail && detailVisible) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    BackToListButton(onClick = { showingDetail = false })
+                    Spacer(modifier = Modifier.height(8.dp))
+                    editor()
+                }
+            } else {
+                lista(Modifier.fillMaxSize())
+            }
+        } else {
+            Row(modifier = Modifier.fillMaxSize()) {
+                lista(Modifier.fillMaxHeight().width(LeftColumnWidth))
+                Spacer(modifier = Modifier.width(24.dp))
+                Box(modifier = Modifier.fillMaxSize()) { editor() }
+            }
+        }
+    }
+}
 
-            Box(modifier = Modifier.fillMaxSize()) {
-                when {
-                    selected == null || !selectedIsInVisibleMonth -> {
-                        EmptyState(
-                            icon = Icons.AutoMirrored.Outlined.MenuBook,
-                            title = tr("Selecione uma reunião para editar"),
-                            description = tr("Escolha uma reunião na lista ao lado para preencher a programação de meio de semana."),
-                        )
-                    }
-                    else -> {
-                        ProgramEditor(
-                            item = selected,
-                            form = state.form,
-                            members = state.members,
-                            isReadOnly = state.isReadOnly,
-                            onUpdate = viewModel::updateForm,
-                        )
-                    }
+/** Navegador de mes + lista de reunioes. Coluna fixa no desktop, tela inteira no celular. */
+@Composable
+private fun MeetingListPane(
+    modifier: Modifier,
+    meetings: List<MidweekMeetingItem>,
+    selectedId: Long?,
+    year: Int,
+    month: Int,
+    onPrev: () -> Unit,
+    onNext: () -> Unit,
+    onSelect: (Long) -> Unit,
+) {
+    Column(modifier = modifier) {
+        MonthNavigator(year = year, month = month, onPrev = onPrev, onNext = onNext)
+        Spacer(modifier = Modifier.height(12.dp))
+        if (meetings.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(
+                    tr("Nenhuma reunião neste mês"),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                items(meetings, key = { it.id }) { item ->
+                    MeetingListItem(
+                        item = item,
+                        selected = item.id == selectedId,
+                        onClick = { onSelect(item.id) },
+                    )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun BackToListButton(onClick: () -> Unit) {
+    TextButton(onClick = onClick) {
+        Icon(
+            imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+            contentDescription = null,
+            modifier = Modifier.size(18.dp),
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(tr("Voltar à lista"))
     }
 }
 

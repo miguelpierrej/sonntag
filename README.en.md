@@ -34,9 +34,11 @@ Download the latest installer from the [Releases](../../releases) page:
 | ------ | ---- |
 | Windows | `Sonntag-<version>.msi` |
 | Linux (Debian/Ubuntu) | `sonntag_<version>_amd64.deb` |
+| Android (phone and tablet) | `Sonntag-<version>-debug.apk` |
 
 On Windows the installer creates a Start menu shortcut and asks whether you want one on
-the desktop. On Linux: `sudo dpkg -i sonntag_<version>_amd64.deb`.
+the desktop. On Linux: `sudo dpkg -i sonntag_<version>_amd64.deb`. On Android, open the
+APK on the device and allow installation from unknown sources.
 
 ## Getting started
 
@@ -76,6 +78,7 @@ Requires **JDK 17**. Kotlin Multiplatform with Compose Multiplatform (desktop/JV
 ./gradlew :composeApp:packageMsi     # .msi installer (on Windows)
 ./gradlew :composeApp:packageMsiWithPrompt  # .msi that prompts for shortcuts (the released one)
 ./gradlew :composeApp:exportAppIcon  # regenerate the icon from AppIcon.kt
+./gradlew assembleDebug              # Android APK (requires the Android SDK)
 ```
 
 Installers can only be produced on the target system — jpackage does not cross-compile.
