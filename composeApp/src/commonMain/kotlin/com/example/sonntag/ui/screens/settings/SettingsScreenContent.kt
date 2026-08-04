@@ -50,6 +50,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.sonntag.ui.components.ScreenScaffold
 import com.example.sonntag.ui.screens.cleaninggroups.CleaningGroupsScreenContent
+import com.example.sonntag.ui.screens.datatransfer.DataTransferScreenContent
 import org.koin.compose.koinInject
 
 private val ContentMaxWidth = 640.dp
@@ -67,24 +68,28 @@ private val DIAS_SEMANA = listOf(
 @Composable
 fun SettingsScreenContent() {
     val tab = remember { mutableStateOf(0) }
-    val subtitle = if (tab.value == 0) tr("Dados gerais e dias de reunião") else tr("Grupos de limpeza")
+    val subtitle = when (tab.value) {
+        0 -> tr("Dados gerais e dias de reunião")
+        1 -> tr("Grupos de limpeza")
+        else -> tr("Exportar e importar entre instalações")
+    }
 
     ScreenScaffold(
         title = tr("Configurações"),
         subtitle = subtitle,
     ) {
         TabStrip(
-            tabs = listOf(tr("Geral"), tr("Grupos de limpeza")),
+            tabs = listOf(tr("Geral"), tr("Grupos de limpeza"), tr("Dados")),
             selectedIndex = tab.value,
             onSelected = { tab.value = it },
         )
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        if (tab.value == 0) {
-            SettingsGeneralContent()
-        } else {
-            CleaningGroupsScreenContent()
+        when (tab.value) {
+            0 -> SettingsGeneralContent()
+            1 -> CleaningGroupsScreenContent()
+            else -> DataTransferScreenContent()
         }
     }
 }

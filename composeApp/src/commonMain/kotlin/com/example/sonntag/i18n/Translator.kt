@@ -300,6 +300,49 @@ object EsTranslations {
         "Nenhum bosquejo encontrado no arquivo. Verifique se é o S-34 (.jwpub) correto." to
             "No se encontró ningún bosquejo en el archivo. Verifique que sea el S-34 (.jwpub) correcto.",
 
+        // Exportação/importação de dados entre instalações
+        "Dados" to "Datos",
+        "Exportar e importar entre instalações" to "Exportar e importar entre instalaciones",
+        "Exportar dados" to "Exportar datos",
+        "Escolha o que vai no arquivo" to "Elija qué va en el archivo",
+        "Congregação e dias de reunião" to "Congregación y días de reunión",
+        "Reuniões" to "Reuniones",
+        "Programas de fim de semana" to "Programas de fin de semana",
+        "Programas de meio de semana" to "Programas de entre semana",
+        "Necessário para os blocos escolhidos" to "Necesario para los bloques elegidos",
+        "Proteger com senha" to "Proteger con contraseña",
+        "Senha" to "Contraseña",
+        "Mínimo de {0} caracteres" to "Mínimo de {0} caracteres",
+        "Quem importar precisará da senha. Combine-a por outro caminho, não junto do arquivo." to
+            "Quien importe necesitará la contraseña. Acuérdenla por otra vía, no junto al archivo.",
+        "Sem senha o arquivo abre em qualquer instalação do app — não protege os nomes." to
+            "Sin contraseña el archivo se abre en cualquier instalación de la app — no protege los nombres.",
+        "Exportar arquivo" to "Exportar archivo",
+        "Salvar pacote de dados" to "Guardar paquete de datos",
+        "Pacote do Sonntag" to "Paquete de Sonntag",
+        "Pacote salvo em {0}" to "Paquete guardado en {0}",
+        "Erro ao exportar: {0}" to "Error al exportar: {0}",
+        "Importar dados" to "Importar datos",
+        "Abra um pacote recebido de outra instalação" to "Abra un paquete recibido de otra instalación",
+        "Nada é gravado antes de você conferir o resumo das mudanças." to
+            "Nada se guarda antes de que revise el resumen de los cambios.",
+        "Escolher arquivo" to "Elegir archivo",
+        "Selecionar pacote de dados" to "Seleccionar paquete de datos",
+        "Este arquivo não é um pacote do Sonntag." to "Este archivo no es un paquete de Sonntag.",
+        "Arquivo protegido" to "Archivo protegido",
+        "Este pacote foi exportado com senha." to "Este paquete se exportó con contraseña.",
+        "Senha incorreta ou arquivo alterado." to "Contraseña incorrecta o archivo alterado.",
+        "Abrir" to "Abrir",
+        "Conferir antes de aplicar" to "Revisar antes de aplicar",
+        "Aplicar" to "Aplicar",
+        "{0} registros novos" to "{0} registros nuevos",
+        "{0} atualizações" to "{0} actualizaciones",
+        "{0} ignorados por referência ausente" to "{0} ignorados por referencia ausente",
+        "Estes registros mudaram dos dois lados. Marque os que devem vir do arquivo; os demais mantêm o que está aqui." to
+            "Estos registros cambiaron en ambos lados. Marque los que deben venir del archivo; los demás conservan lo de aquí.",
+        "aqui: {0} · arquivo: {1}" to "aquí: {0} · archivo: {1}",
+        "Importação concluída: {0} registros aplicados." to "Importación finalizada: {0} registros aplicados.",
+
         // Comuns de reunião
         "Selecione uma reunião para editar (meio de semana)" to "Seleccione una reunión (entre semana)",
     )

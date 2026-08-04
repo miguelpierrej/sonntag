@@ -1,11 +1,15 @@
 package com.example.sonntag.data.repos
 
 import com.example.sonntag.data.sqldelight.SonntagDatabase
+import com.example.sonntag.sync.SyncStamp
 import com.example.sonntag.data.sqldelight.Weekend_programs
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 
-class WeekendProgramsRepository(private val database: SonntagDatabase) {
+class WeekendProgramsRepository(
+    private val database: SonntagDatabase,
+    private val stamp: SyncStamp,
+) {
     fun getAll(): Flow<List<Weekend_programs>> {
         return flowOf(database.schemaQueries.getAllWeekendPrograms().executeAsList())
     }
@@ -28,7 +32,8 @@ class WeekendProgramsRepository(private val database: SonntagDatabase) {
         leitorId: Long?,
     ) {
         database.schemaQueries.insertWeekendProgram(
-            meetingId, tituloDiscurso, oradorId, oradorNome, presidenteId, dirigenteId, leitorId
+            meetingId, tituloDiscurso, oradorId, oradorNome, presidenteId, dirigenteId, leitorId,
+            stamp.newRowUuid(), stamp.now(), stamp.deviceId
         )
     }
 
@@ -42,12 +47,13 @@ class WeekendProgramsRepository(private val database: SonntagDatabase) {
         leitorId: Long?,
     ) {
         database.schemaQueries.updateWeekendProgram(
-            tituloDiscurso, oradorId, oradorNome, presidenteId, dirigenteId, leitorId, meetingId
+            tituloDiscurso, oradorId, oradorNome, presidenteId, dirigenteId, leitorId,
+            stamp.now(), stamp.deviceId, meetingId
         )
     }
 
     fun delete(meetingId: Long) {
-        database.schemaQueries.deleteWeekendProgram(meetingId)
+        database.schemaQueries.deleteWeekendProgram(stamp.now(), stamp.deviceId, meetingId)
     }
 
     fun upsert(
@@ -59,7 +65,9 @@ class WeekendProgramsRepository(private val database: SonntagDatabase) {
         dirigenteId: Long?,
         leitorId: Long?,
     ) {
-        val current = getByMeetingIdOnce(meetingId)
+        // Inclui excluidos: o UNIQUE(meeting_id) impede inserir por cima de uma
+        // linha apagada — atualizar a revive.
+        val current = database.schemaQueries.getWeekendProgramByMeetingIdAny(meetingId).executeAsOneOrNull()
         if (current == null) {
             insert(meetingId, tituloDiscurso, oradorId, oradorNome, presidenteId, dirigenteId, leitorId)
         } else {

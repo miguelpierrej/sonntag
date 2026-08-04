@@ -1,11 +1,15 @@
 package com.example.sonntag.data.repos
 
 import com.example.sonntag.data.sqldelight.SonntagDatabase
+import com.example.sonntag.sync.SyncStamp
 import com.example.sonntag.data.sqldelight.Meetings
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 
-class MeetingsRepository(private val database: SonntagDatabase) {
+class MeetingsRepository(
+    private val database: SonntagDatabase,
+    private val stamp: SyncStamp,
+) {
     fun getAll(): Flow<List<Meetings>> {
         return flowOf(database.schemaQueries.getAllMeetings().executeAsList())
     }
@@ -39,16 +43,16 @@ class MeetingsRepository(private val database: SonntagDatabase) {
     }
 
     fun insert(data: String, hora: String, tipo: String): Long {
-        database.schemaQueries.insertMeeting(data, hora, tipo)
+        database.schemaQueries.insertMeeting(data, hora, tipo, stamp.newRowUuid(), stamp.now(), stamp.deviceId)
         return database.schemaQueries.getAllMeetings().executeAsList().last().id
     }
 
     fun update(id: Long, data: String, hora: String, tipo: String) {
-        database.schemaQueries.updateMeeting(data, hora, tipo, id)
+        database.schemaQueries.updateMeeting(data, hora, tipo, stamp.now(), stamp.deviceId, id)
     }
 
     fun delete(id: Long) {
-        database.schemaQueries.deleteMeeting(id)
+        database.schemaQueries.deleteMeeting(stamp.now(), stamp.deviceId, id)
     }
 
     fun getFutureMeetings(fromDateExclusive: String): List<Meetings> {
@@ -60,7 +64,7 @@ class MeetingsRepository(private val database: SonntagDatabase) {
     }
 
     fun deleteFutureMeetingsWithoutProgram(fromDateExclusive: String) {
-        database.schemaQueries.deleteFutureMeetingsWithoutProgram(fromDateExclusive)
+        database.schemaQueries.deleteFutureMeetingsWithoutProgram(stamp.now(), stamp.deviceId, fromDateExclusive)
     }
 }
 

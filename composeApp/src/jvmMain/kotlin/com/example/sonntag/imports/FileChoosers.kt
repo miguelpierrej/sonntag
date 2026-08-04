@@ -27,6 +27,28 @@ internal fun chooseOpenPath(title: String, filterLabel: String, extension: Strin
     }
 }
 
+/** Dialogo de salvar, com o nome sugerido ja preenchido. */
+internal fun chooseSavePath(
+    defaultName: String,
+    title: String,
+    filterLabel: String,
+    extension: String,
+): String? = runOnEdt {
+    val parent = KeyboardFocusManager.getCurrentKeyboardFocusManager().activeWindow
+    val chooser = JFileChooser().apply {
+        dialogTitle = title
+        fileSelectionMode = JFileChooser.FILES_ONLY
+        isMultiSelectionEnabled = false
+        selectedFile = java.io.File(defaultName)
+        fileFilter = FileNameExtensionFilter("$filterLabel (*.$extension)", extension)
+    }
+    if (chooser.showSaveDialog(parent) == JFileChooser.APPROVE_OPTION) {
+        chooser.selectedFile?.absolutePath
+    } else {
+        null
+    }
+}
+
 private fun <T> runOnEdt(block: () -> T): T {
     if (EventQueue.isDispatchThread()) return block()
     val task = FutureTask { block() }
