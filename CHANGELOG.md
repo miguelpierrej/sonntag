@@ -9,7 +9,7 @@ O workflow de release lê a seção da versão que está sendo fechada e usa o c
 como corpo do GitHub Release — o cabeçalho precisa ser `## [x.y.z] - AAAA-MM-DD`.
 
 
-## [1.0.5] - UNRELEASED
+## [1.0.5] - 2026-08-05
 
 ### Corrigido
 - O app instalado não abria: no Windows o instalador saía com "Failed to launch JVM" e
