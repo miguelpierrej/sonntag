@@ -20,6 +20,7 @@ import com.example.sonntag.ui.layout.LocalWindowSize
 import com.example.sonntag.ui.layout.WindowSize
 import com.example.sonntag.ui.screens.av.AvAssignmentsScreenContent
 import com.example.sonntag.ui.screens.cleaning.CleaningScreenContent
+import com.example.sonntag.ui.screens.datatransfer.DataTransferScreenContent
 import com.example.sonntag.ui.screens.midweek.MidweekProgramsScreenContent
 import com.example.sonntag.ui.screens.weekend.WeekendProgramsScreenContent
 import com.example.sonntag.ui.theme.AppTheme
@@ -53,7 +54,11 @@ fun main(args: Array<String>) {
         Triple("tablet-paisagem-util-910", 910, 720),
     )
 
-    alvos.forEach { (nome, larguraDp, alturaDp) ->
+    // ALTURA permite esticar a janela para ver uma tela rolavel inteira de uma vez.
+    val alturaForcada = System.getenv("ALTURA")?.toIntOrNull()
+
+    alvos.forEach { (nome, larguraDp, alturaPadrao) ->
+        val alturaDp = alturaForcada ?: alturaPadrao
         val scene = ImageComposeScene(
             width = (larguraDp * 2f).toInt(),
             height = (alturaDp * 2f).toInt(),
@@ -94,6 +99,7 @@ private fun Conteudo(tela: String, larguraDp: Int) {
                     "meio-de-semana" -> MidweekProgramsScreenContent()
                     "av" -> AvAssignmentsScreenContent()
                     "limpeza" -> CleaningScreenContent()
+                    "dados" -> DataTransferScreenContent()
                 }
             }
         }

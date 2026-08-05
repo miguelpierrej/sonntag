@@ -191,6 +191,14 @@ CREATE UNIQUE INDEX midweek_programs_uuid ON midweek_programs(uuid);
 CREATE UNIQUE INDEX cleaning_assignments_uuid ON cleaning_assignments(uuid);
 CREATE UNIQUE INDEX av_assignments_uuid ON av_assignments(uuid);
 
+-- Ate quando ja trocamos dados com cada aparelho conhecido. Permite enviar so o
+-- que mudou desde a ultima sincronizacao, em vez do banco inteiro.
+CREATE TABLE sync_peers (
+    device_id TEXT PRIMARY KEY,
+    nome TEXT,
+    last_sync_at TEXT
+);
+
 -- Conflitos detectados na fusao, aguardando decisao do usuario
 CREATE TABLE sync_conflicts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -429,6 +437,17 @@ UPDATE cleaning_assignments SET group_id = ?, updated_at = ?, updated_by = ?, de
 
 deleteCleaningAssignmentByWeek:
 UPDATE cleaning_assignments SET deleted = 1, updated_at = ?, updated_by = ? WHERE semana_iso = ? AND ano = ?;
+
+-- Sync peers queries
+
+getAllPeers:
+SELECT * FROM sync_peers ORDER BY nome ASC;
+
+getPeer:
+SELECT * FROM sync_peers WHERE device_id = ?;
+
+upsertPeer:
+INSERT OR REPLACE INTO sync_peers (device_id, nome, last_sync_at) VALUES (?, ?, ?);
 
 -- Talk outlines queries (S-34)
 

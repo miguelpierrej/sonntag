@@ -17,6 +17,9 @@ internal fun referencedTable(column: String): String? = when {
     else -> "members"
 }
 
+/** Tabelas para as quais outras apontam; podem ser arrastadas num envio incremental. */
+private val REFERENCIADAS = setOf("meetings", "members", "cleaning_groups")
+
 /** Colunas que nunca viajam: o id e local e o uuid identifica a linha. */
 private const val LOCAL_ID = "id"
 
@@ -32,8 +35,12 @@ private const val LOCAL_ID = "id"
  * `members` fica de fora de proposito: dois homonimos sao pessoas diferentes.
  */
 internal fun naturalKey(table: String): List<String>? = when (table) {
-    "meetings" -> listOf("data", "hora", "tipo")
-    "meeting_days" -> listOf("dia_semana", "hora")
+    // A hora nao entra na chave: ela e o que o usuario edita. Se entrasse, mudar o
+    // horario num aparelho criaria uma segunda reuniao no outro em vez de corrigir a
+    // que ja existe. O proprio app identifica reuniao por data|tipo e dia por
+    // dia_semana (ver regenerateFutureMeetings).
+    "meetings" -> listOf("data", "tipo")
+    "meeting_days" -> listOf("dia_semana")
     "cleaning_groups" -> listOf("nome")
     "cleaning_assignments" -> listOf("semana_iso", "ano")
     "weekend_programs", "midweek_programs", "av_assignments" -> listOf("meeting_id")
@@ -102,22 +109,34 @@ class SyncService(
 
     // ─── Exportacao ──────────────────────────────────────────────────────────
 
-    /** Monta o pacote cifrado com as secoes escolhidas. Senha nula = sem protecao real. */
-    fun buildPackage(sections: List<SyncSection>, password: String?): ByteArray {
-        val tables = sections.flatMap { it.tables }.distinct().map { table ->
+    /**
+     * Monta o pacote cifrado com as secoes escolhidas. Senha nula = sem protecao real.
+     *
+     * Com [since], envia so o que mudou depois daquele instante — o caso comum entre
+     * dois aparelhos que ja sincronizaram e tem uma unica alteracao a passar.
+     */
+    fun buildPackage(
+        sections: List<SyncSection>,
+        password: String?,
+        since: String? = null,
+    ): ByteArray {
+        val tabelas = sections.flatMap { it.tables }.distinct()
+
+        // Tudo lido primeiro: o recorte precisa poder buscar as linhas referenciadas
+        // que nao mudaram, mas sem as quais as que mudaram nao fazem sentido.
+        val completo = tabelas.associateWith { table ->
             val columns = store.columns(table).filter { it != LOCAL_ID }
             val referenceMaps = columns.mapNotNull { column ->
                 referencedTable(column)?.let { column to store.localIdToUuid(it) }
             }.toMap()
+            columns to store.rows(table, columns).map { row ->
+                row.mapValues { (column, value) -> toUuid(referenceMaps, column, value) }
+            }
+        }
 
-            PackageTable(
-                name = table,
-                columns = columns,
-                // Referencia sai como uuid; id local nao significa nada la fora.
-                rows = store.rows(table, columns).map { row ->
-                    row.mapValues { (column, value) -> toUuid(referenceMaps, column, value) }
-                },
-            )
+        val tables = tabelas.map { table ->
+            val (columns, todas) = completo.getValue(table)
+            PackageTable(table, columns, if (since == null) todas else recorte(table, todas, completo, since))
         }
 
         val salt = crypto.randomBytes(SALT_SIZE)
@@ -139,6 +158,35 @@ class SyncService(
             iv,
         )
         return frame(encodeHeader(header), cipher)
+    }
+
+    /**
+     * Linhas alteradas depois de [since], mais aquelas a que elas se referem.
+     *
+     * Sem esse arrasto, um programa alterado chegaria sozinho e o outro lado nao teria
+     * a reuniao correspondente para ligar — o mesmo NOT NULL que ja nos mordeu.
+     */
+    private fun recorte(
+        table: String,
+        todas: List<RowValues>,
+        completo: Map<String, Pair<List<String>, List<RowValues>>>,
+        since: String,
+    ): List<RowValues> {
+        val alteradas = todas.filter { (it["updated_at"] ?: "") > since }
+        if (table !in REFERENCIADAS) return alteradas
+
+        // Quais uuids desta tabela alguem que mudou precisa?
+        val necessarios = completo.entries.flatMap { (outra, dados) ->
+            val (colunas, linhas) = dados
+            val referentes = colunas.filter { referencedTable(it) == table }
+            if (referentes.isEmpty()) emptyList()
+            else linhas.filter { (it["updated_at"] ?: "") > since }
+                .flatMap { linha -> referentes.mapNotNull { linha[it] } }
+        }.toSet()
+
+        val jaIncluidos = alteradas.mapNotNull { it["uuid"] }.toSet()
+        val arrastadas = todas.filter { it["uuid"] in necessarios && it["uuid"] !in jaIncluidos }
+        return alteradas + arrastadas
     }
 
     // ─── Importacao ──────────────────────────────────────────────────────────

@@ -37,7 +37,13 @@ kotlin {
         }
     }
 
+    // Desktop e Android sao os dois JVM: o codigo de rede (java.net) vive uma vez so.
+    applyDefaultHierarchyTemplate()
     sourceSets {
+        val jvmAndroidMain by creating { dependsOn(commonMain.get()) }
+        jvmMain.get().dependsOn(jvmAndroidMain)
+        androidMain.get().dependsOn(jvmAndroidMain)
+
         commonMain.dependencies {
             implementation(libs.compose.runtime)
             implementation(libs.compose.foundation)
@@ -222,4 +228,12 @@ tasks.register<JavaExec>("renderScreens") {
     classpath = jvmMain.output.allOutputs + jvmMain.runtimeDependencyFiles
     mainClass.set("com.example.sonntag.tools.RenderScreensKt")
     args(System.getenv("OUT_DIR") ?: "/tmp/screens", System.getenv("SCREEN") ?: "painel")
+}
+
+tasks.register<JavaExec>("repairDb") {
+    val jvmMain = kotlin.jvm().compilations.getByName("main")
+    dependsOn(jvmMain.compileTaskProvider)
+    classpath = jvmMain.output.allOutputs + jvmMain.runtimeDependencyFiles
+    mainClass.set("com.example.sonntag.tools.RepairDbKt")
+    args(System.getenv("DB") ?: "${System.getProperty("user.home")}/.salao-app/data.db")
 }

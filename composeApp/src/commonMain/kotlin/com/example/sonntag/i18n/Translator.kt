@@ -344,6 +344,26 @@ object EsTranslations {
         "aqui: {0} · arquivo: {1}" to "aquí: {0} · archivo: {1}",
         "Importação concluída: {0} registros aplicados." to "Importación finalizada: {0} registros aplicados.",
 
+        // Sincronização pela rede local
+        "Rede local" to "Red local",
+        "Trocar dados com quem está na mesma rede" to "Intercambiar datos con quien está en la misma red",
+        "Ficar visível na rede" to "Hacerse visible en la red",
+        "Os dois aparelhos precisam estar visíveis, na mesma rede." to
+            "Los dos aparatos deben estar visibles, en la misma red.",
+        "Seu código" to "Su código",
+        "Informe-o a quem for iniciar a troca." to "Indíqueselo a quien inicie el intercambio.",
+        "Procurando aparelhos..." to "Buscando aparatos...",
+        "Sincronizar" to "Sincronizar",
+        "Trocando com {0}..." to "Intercambiando con {0}...",
+        "Código de {0}" to "Código de {0}",
+        "Digite os quatro dígitos que aparecem no outro aparelho." to
+            "Escriba los cuatro dígitos que aparecen en el otro aparato.",
+        "Código" to "Código",
+        "Código incorreto." to "Código incorrecto.",
+        "Nada novo de {0}." to "Nada nuevo de {0}.",
+        "Não foi possível falar com {0}." to "No se pudo contactar con {0}.",
+        "Aparelho" to "Aparato",
+
         // Comuns de reunião
         "Selecione uma reunião para editar (meio de semana)" to "Seleccione una reunión (entre semana)",
     )

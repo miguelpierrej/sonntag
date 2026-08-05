@@ -9,6 +9,7 @@ import com.example.sonntag.data.repos.MembersRepository
 import com.example.sonntag.data.repos.MidweekProgramsRepository
 import com.example.sonntag.data.repos.PreferencesRepository
 import com.example.sonntag.data.repos.SettingsRepository
+import com.example.sonntag.data.repos.SyncPeersRepository
 import com.example.sonntag.data.repos.TalkOutlinesRepository
 import com.example.sonntag.i18n.LocaleController
 import com.example.sonntag.data.repos.WeekendProgramsRepository
@@ -63,6 +64,7 @@ val appModule = module {
     single { AvAssignmentsRepository(get(), get()) }
     single { PreferencesRepository(get()) }
     single { TalkOutlinesRepository(get()) }
+    single { SyncPeersRepository(get()) }
 
     // i18n
     single { LocaleController(get()) }
@@ -77,7 +79,7 @@ val appModule = module {
     single { InitialSetupViewModel(get(), get(), get()) }
     single { MembersViewModel(get()) }
     single { CleaningGroupsViewModel(get()) }
-    single { DataTransferViewModel(get(), get(), get()) }
+    single { DataTransferViewModel(get(), get(), get(), get(), get(), get()) }
     single { DashboardViewModel(get(), get(), get(), get(), get(), get(), get(), get()) }
     single { SettingsViewModel(get(), get(), get(), get()) }
     single { WeekendProgramsViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get()) }

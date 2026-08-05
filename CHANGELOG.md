@@ -10,7 +10,23 @@ como corpo do GitHub Release — o cabeçalho precisa ser `## [x.y.z] - AAAA-MM-
 
 ## [1.0.4] - UNRELEASED
 
+### Adicionado
+- Sincronização pela rede local, em Configurações › Dados. Com os dois aparelhos
+  visíveis na mesma rede, um encontra o outro sozinho e a troca é nos dois sentidos:
+  cada lado envia o que tem de novo e confere o próprio resumo antes de gravar. Quem
+  inicia precisa do código de quatro dígitos exibido pelo outro aparelho.
+- A troca envia apenas o que mudou desde a última sincronização com aquele aparelho.
+  Numa segunda troca com uma única alteração, o pacote cai de cerca de 26 KB para 1 KB.
+
 ### Corrigido
+- Mudar o horário de uma reunião num aparelho criava uma agenda inteira em paralelo no
+  outro — uma semana preenchida e uma vazia, lado a lado. A hora fazia parte da chave
+  que identifica reunião e dia de reunião, e ela é justamente o que o usuário edita.
+  Agora reunião é identificada por data e tipo, e dia de reunião pelo dia da semana,
+  como o próprio app já fazia ao regenerar a agenda.
+- Ao abrir, o app funde as agendas duplicadas que ficaram desse problema: sobrevive a
+  reunião que carrega o programa, o horário passa a ser o da última alteração e as
+  reuniões passadas ficam com o horário em que de fato aconteceram.
 - Importar um pacote de dados falhava com "NOT NULL constraint failed:
   weekend_programs.meeting_id" ao aplicar as mudanças. Os programas se referem à sua
   reunião, e quando a mesma reunião existia dos dois lados com identificadores

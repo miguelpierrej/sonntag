@@ -322,6 +322,19 @@ actual fun createDatabaseDriver(): SqlDriver {
             // outra vazia), porque cada instalacao gerava a sua com uuid proprio.
             mergeDuplicateMeetings(connection)
 
+            // v11: memoria de sincronizacao por aparelho
+            connection.createStatement().use {
+                it.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS sync_peers (
+                        device_id TEXT PRIMARY KEY,
+                        nome TEXT,
+                        last_sync_at TEXT
+                    )
+                    """.trimIndent()
+                )
+            }
+
             // v4: add 4th ministry slot to midweek_programs (apostilas com 4 partes)
             listOf("min4_titulo TEXT", "min4_minutos TEXT", "min4_estudante_id INTEGER", "min4_ajudante_id INTEGER")
                 .forEach { columnDef ->

@@ -28,6 +28,9 @@ se puede exportar en PDF o PNG para imprimir o compartir.
   archivo `.sonntag` cifrado (con contraseña opcional) que otra instalación importa.
   Antes de guardar nada se muestra un resumen, y usted decide registro a registro qué
   hacer cuando los dos lados cambiaron.
+- **Red local** — si los dos aparatos están en la misma red, se encuentran solos: cada uno
+  se hace visible, quien inicia escribe el código de cuatro dígitos que muestra el otro y
+  el intercambio va en los dos sentidos. Solo viaja lo que cambió desde la última vez.
 - **Sin conexión** — no requiere internet ni cuenta; los datos nunca salen de la máquina.
 
 ## Instalación
@@ -53,8 +56,9 @@ abra el APK en el teléfono y permita la instalación de orígenes desconocidos.
 3. Registre a los **publicadores** y, en Configuración, los **grupos de limpieza**.
 4. Opcional: use **Importar S-34** en la pantalla de fin de semana para tener la lista de
    bosquejos, e **Importar guía** en la de entre semana para llenar las semanas del mes.
-5. Para trabajar en más de un aparato, exporte los datos en **Configuración › Datos** e
-   impórtelos en el otro. Cada instalación guarda los suyos; el archivo es el puente.
+5. Para trabajar en más de un aparato hay dos caminos, ambos en **Configuración › Datos**:
+   en la misma red, active **Hacerse visible en la red** en los dos y sincronice con el
+   código; fuera de la red, exporte el archivo `.sonntag` e impórtelo en el otro.
 
 ## Idioma
 

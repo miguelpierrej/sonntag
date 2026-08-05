@@ -1,5 +1,6 @@
 package com.example.sonntag.ui.screens.datatransfer
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +20,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Devices
 import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material.icons.outlined.UploadFile
 import androidx.compose.material3.AlertDialog
@@ -32,6 +34,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -39,10 +42,12 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.sonntag.i18n.tr
+import com.example.sonntag.net.LanPeer
 import com.example.sonntag.sync.ChangeKind
 import com.example.sonntag.sync.IncomingRow
 import com.example.sonntag.sync.SyncSection
@@ -62,6 +67,17 @@ fun DataTransferScreenContent() {
             confirmButton = { TextButton(onClick = viewModel::dismissMessage) { Text(tr("OK")) } },
             title = { Text(tr("Dados")) },
             text = { Text(message) },
+        )
+    }
+
+    state.peerAskingCode?.let { peer ->
+        PeerCodeDialog(
+            peerNome = peer.nome,
+            code = state.peerCode,
+            error = state.peerCodeError,
+            onChange = viewModel::setPeerCode,
+            onConfirm = viewModel::syncWithPeer,
+            onCancel = viewModel::cancelPeerCode,
         )
     }
 
@@ -104,6 +120,14 @@ fun DataTransferScreenContent() {
             onExport = viewModel::export,
         )
         ImportCard(busy = state.isBusy, onImport = viewModel::pickFileToImport)
+        LanCard(
+            visible = state.lanVisible,
+            myCode = state.myCode,
+            peers = state.peers,
+            syncingWith = state.syncingWith,
+            onToggle = viewModel::toggleLan,
+            onPeerClick = viewModel::askPeerCode,
+        )
     }
 }
 
@@ -202,6 +226,136 @@ private fun ImportCard(busy: Boolean, onImport: () -> Unit) {
             Text(tr("Escolher arquivo"))
         }
     }
+}
+
+/**
+ * Rede local: enquanto visivel, este aparelho se anuncia e enxerga os outros. A troca
+ * e nos dois sentidos, e quem inicia precisa do codigo exibido pelo outro.
+ */
+@Composable
+private fun LanCard(
+    visible: Boolean,
+    myCode: String,
+    peers: List<LanPeer>,
+    syncingWith: String?,
+    onToggle: (Boolean) -> Unit,
+    onPeerClick: (LanPeer) -> Unit,
+) {
+    SectionCard(
+        title = tr("Rede local"),
+        subtitle = tr("Trocar dados com quem está na mesma rede"),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Switch(checked = visible, onCheckedChange = onToggle)
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(tr("Ficar visível na rede"), style = MaterialTheme.typography.bodyMedium)
+        }
+
+        if (!visible) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                tr("Os dois aparelhos precisam estar visíveis, na mesma rede."),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            return@SectionCard
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(tr("Seu código"), style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            text = myCode,
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        Text(
+            tr("Informe-o a quem for iniciar a troca."),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        Spacer(modifier = Modifier.height(12.dp))
+
+        if (syncingWith != null) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(tr("Trocando com {0}...", syncingWith), style = MaterialTheme.typography.bodyMedium)
+            }
+            return@SectionCard
+        }
+
+        if (peers.isEmpty()) {
+            Text(
+                tr("Procurando aparelhos..."),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            peers.forEach { peer ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().clickable { onPeerClick(peer) }
+                        .padding(vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Devices,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp),
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(peer.nome, style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            peer.host,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Text(tr("Sincronizar"), style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PeerCodeDialog(
+    peerNome: String,
+    code: String,
+    error: Boolean,
+    onChange: (String) -> Unit,
+    onConfirm: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onCancel,
+        confirmButton = {
+            TextButton(onClick = onConfirm, enabled = code.length == 4) { Text(tr("Sincronizar")) }
+        },
+        dismissButton = { TextButton(onClick = onCancel) { Text(tr("Cancelar")) } },
+        title = { Text(tr("Código de {0}", peerNome)) },
+        text = {
+            Column {
+                Text(tr("Digite os quatro dígitos que aparecem no outro aparelho."))
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = code,
+                    onValueChange = onChange,
+                    label = { Text(tr("Código")) },
+                    singleLine = true,
+                    isError = error,
+                    supportingText = if (error) {{ Text(tr("Código incorreto.")) }} else null,
+                )
+            }
+        },
+    )
 }
 
 @Composable

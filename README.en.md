@@ -28,6 +28,9 @@ printing or sharing.
   encrypted `.sonntag` file (password optional) that another installation imports.
   Nothing is written before you review a summary, and you decide record by record what
   to do when both sides changed.
+- **Local network** — when both devices are on the same network they find each other on
+  their own: each one goes visible, whoever starts types the four-digit code the other
+  shows, and the exchange runs both ways. Only what changed since last time travels.
 - **Offline** — no internet connection or account required; data never leaves the machine.
 
 ## Installation
@@ -52,8 +55,9 @@ APK on the device and allow installation from unknown sources.
 3. Add your **publishers** and, under Settings, the **cleaning groups**.
 4. Optional: use **Import S-34** on the weekend screen to get the outline list, and
    **Import workbook** on the midweek screen to fill in the weeks of the month.
-5. To work on more than one device, export your data under **Settings › Data** and import
-   it on the other one. Each installation keeps its own; the file is the bridge.
+5. To work on more than one device there are two routes, both under **Settings › Data**:
+   on the same network, turn on **Go visible on the network** on both and sync with the
+   code; off the network, export the `.sonntag` file and import it on the other device.
 
 ## Language
 

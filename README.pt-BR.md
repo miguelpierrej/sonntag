@@ -28,6 +28,9 @@ pode ser exportada em PDF ou PNG para imprimir ou compartilhar.
   para um arquivo `.sonntag` cifrado (com senha opcional) que outra instalação importa.
   Nada é gravado antes de você conferir o resumo, e você decide registro a registro o
   que fazer quando os dois lados mudaram.
+- **Rede local** — se os dois aparelhos estão na mesma rede, um acha o outro sozinho: cada
+  um fica visível, quem inicia digita o código de quatro dígitos que o outro mostra e a
+  troca vai nos dois sentidos. Só viaja o que mudou desde a última vez.
 - **Offline** — não exige internet nem conta; os dados nunca saem da máquina.
 
 ## Instalação
@@ -52,8 +55,9 @@ no aparelho e permita a instalação de fontes desconhecidas.
 3. Cadastre os **membros** e, em Configurações, os **grupos de limpeza**.
 4. Opcional: use **Importar S-34** na tela de fim de semana para ter a lista de esboços, e
    **Importar apostila** na de meio de semana para preencher as semanas do mês.
-5. Para trabalhar em mais de um aparelho, exporte os dados em **Configurações › Dados** e
-   importe no outro. Cada instalação guarda os seus; o arquivo é a ponte.
+5. Para trabalhar em mais de um aparelho há dois caminhos, os dois em **Configurações ›
+   Dados**: na mesma rede, ligue **Ficar visível na rede** nos dois e sincronize com o
+   código; fora da rede, exporte o arquivo `.sonntag` e importe no outro.
 
 ## Idioma
 

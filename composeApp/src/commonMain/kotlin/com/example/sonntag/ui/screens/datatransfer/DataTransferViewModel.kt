@@ -2,7 +2,17 @@ package com.example.sonntag.ui.screens.datatransfer
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.sonntag.data.repos.SettingsRepository
+import com.example.sonntag.data.repos.SyncPeersRepository
 import com.example.sonntag.i18n.LocaleController
+import com.example.sonntag.net.LanException
+import com.example.sonntag.net.LanLog
+import com.example.sonntag.net.LanFailure
+import com.example.sonntag.net.LanPeer
+import com.example.sonntag.net.LanSync
+import com.example.sonntag.net.LanSyncConfig
+import com.example.sonntag.net.createLanSync
+import com.example.sonntag.sync.SyncStamp
 import com.example.sonntag.sync.ChangeKind
 import com.example.sonntag.sync.ImportPreview
 import com.example.sonntag.sync.IncomingRow
@@ -34,6 +44,15 @@ data class DataTransferUiState(
     val passwordError: Boolean = false,
     /** Divergencias que o usuario decidiu aceitar do arquivo. */
     val acceptedConflicts: Set<String> = emptySet(),
+    // Rede local
+    val lanVisible: Boolean = false,
+    val myCode: String = "",
+    val peers: List<LanPeer> = emptyList(),
+    /** Aparelho escolhido, aguardando o codigo dele. */
+    val peerAskingCode: LanPeer? = null,
+    val peerCode: String = "",
+    val peerCodeError: Boolean = false,
+    val syncingWith: String? = null,
 ) {
     val canExport: Boolean
         get() = selectedSections.isNotEmpty() && !isBusy &&
@@ -46,7 +65,28 @@ class DataTransferViewModel(
     private val syncService: SyncService,
     private val fileService: SyncFileService,
     private val localeController: LocaleController,
+    private val peersRepository: SyncPeersRepository,
+    private val settingsRepository: SettingsRepository,
+    private val stamp: SyncStamp,
 ) : ViewModel() {
+
+    /** Todas as secoes: numa troca pela rede nao faz sentido escolher parte. */
+    private val todasSecoes = SyncSection.entries.toList()
+
+    private val lan: LanSync by lazy {
+        createLanSync(
+            LanSyncConfig(
+                deviceId = stamp.deviceId,
+                deviceName = {
+                    settingsRepository.getSettingsOnce()?.nome?.takeIf { it.isNotBlank() }
+                        ?: localeController.translator("Aparelho")
+                },
+                buildPackage = { since -> syncService.buildPackage(todasSecoes, null, since) },
+                lastSyncWith = { peersRepository.lastSyncAt(it) },
+                onPackageReceived = { peerId, peerNome, bytes -> receberDaRede(peerId, peerNome, bytes) },
+            ),
+        )
+    }
 
     private val _uiState = MutableStateFlow(DataTransferUiState())
     val uiState: StateFlow<DataTransferUiState> = _uiState.asStateFlow()
@@ -112,6 +152,97 @@ class DataTransferViewModel(
     private fun defaultFileName(): String {
         val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
         return "sonntag-$today.$PACKAGE_EXTENSION"
+    }
+
+    // ─── Rede local ──────────────────────────────────────────────────────────
+
+    /** Liga/desliga o anuncio na rede. Enquanto ligado, outros aparelhos nos veem. */
+    fun toggleLan(visible: Boolean) {
+        if (visible) {
+            lan.start(viewModelScope)
+            _uiState.value = _uiState.value.copy(lanVisible = true, myCode = lan.myCode)
+            viewModelScope.launch {
+                lan.peers.collect { lista -> _uiState.value = _uiState.value.copy(peers = lista) }
+            }
+        } else {
+            lan.stop()
+            _uiState.value = _uiState.value.copy(lanVisible = false, peers = emptyList(), myCode = "")
+        }
+    }
+
+    fun askPeerCode(peer: LanPeer) {
+        _uiState.value = _uiState.value.copy(peerAskingCode = peer, peerCode = "", peerCodeError = false)
+    }
+
+    fun setPeerCode(value: String) {
+        _uiState.value = _uiState.value.copy(peerCode = value.filter { it.isDigit() }.take(4), peerCodeError = false)
+    }
+
+    fun cancelPeerCode() {
+        _uiState.value = _uiState.value.copy(peerAskingCode = null, peerCode = "")
+    }
+
+    /** Troca com o aparelho escolhido; o resumo do que chegou aparece em seguida. */
+    fun syncWithPeer() {
+        val state = _uiState.value
+        val peer = state.peerAskingCode ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            _uiState.value = state.copy(peerAskingCode = null, syncingWith = peer.nome)
+            val t = localeController.translator
+            try {
+                val bytes = lan.syncWith(peer, state.peerCode)
+                peersRepository.remember(peer.deviceId, peer.nome, stamp.now())
+                val preview = syncService.preview(bytes, null)
+                _uiState.value = _uiState.value.copy(
+                    syncingWith = null,
+                    preview = preview,
+                    acceptedConflicts = emptySet(),
+                    message = if (preview != null && preview.rows.isEmpty()) {
+                        t("Nada novo de {0}.", peer.nome)
+                    } else null,
+                )
+            } catch (e: LanException) {
+                _uiState.value = _uiState.value.copy(
+                    syncingWith = null,
+                    peerAskingCode = if (e.failure == LanFailure.CODIGO_INCORRETO) peer else null,
+                    peerCodeError = e.failure == LanFailure.CODIGO_INCORRETO,
+                    message = when (e.failure) {
+                        LanFailure.CODIGO_INCORRETO -> null
+                        else -> t("Não foi possível falar com {0}.", peer.nome)
+                    },
+                )
+            } catch (e: Exception) {
+                // Gravar o parceiro ou ler o pacote tambem podem falhar; sem isto a
+                // falha subia pelo escopo e derrubava a tela sem dizer nada.
+                LanLog.e("troca com ${peer.nome} falhou depois da rede", e)
+                _uiState.value = _uiState.value.copy(
+                    syncingWith = null,
+                    message = t("Não foi possível falar com {0}.", peer.nome),
+                )
+            }
+        }
+    }
+
+    /** Pacote que chegou de outro aparelho, sem termos iniciado. */
+    private suspend fun receberDaRede(peerId: String, peerNome: String, bytes: ByteArray) {
+        val preview = syncService.preview(bytes, null)
+        if (preview == null) {
+            LanLog.e("nao consegui ler o pacote de $peerNome (${bytes.size} bytes)")
+            return
+        }
+        peersRepository.remember(peerId, peerNome, stamp.now())
+        _uiState.value = _uiState.value.copy(
+            preview = preview.takeIf { it.rows.isNotEmpty() },
+            acceptedConflicts = emptySet(),
+            message = if (preview.rows.isEmpty()) {
+                localeController.translator("Nada novo de {0}.", peerNome)
+            } else null,
+        )
+    }
+
+    override fun onCleared() {
+        lan.stop()
+        super.onCleared()
     }
 
     // ─── Importacao ──────────────────────────────────────────────────────────
