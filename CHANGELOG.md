@@ -8,6 +8,28 @@ versionamento segue o [Semantic Versioning](https://semver.org/lang/pt-BR/).
 O workflow de release lê a seção da versão que está sendo fechada e usa o conteúdo
 como corpo do GitHub Release — o cabeçalho precisa ser `## [x.y.z] - AAAA-MM-DD`.
 
+## [1.0.4] - UNRELEASED
+
+### Corrigido
+- Importar um pacote de dados falhava com "NOT NULL constraint failed:
+  weekend_programs.meeting_id" ao aplicar as mudanças. Os programas se referem à sua
+  reunião, e quando a mesma reunião existia dos dois lados com identificadores
+  diferentes, o programa não encontrava onde se ligar. O arquivo exportado estava
+  correto o tempo todo — o defeito era na importação, então os pacotes já gerados
+  continuam válidos.
+- A tela de importação listava a agenda inteira como divergência a decidir (uma linha
+  por reunião), quando na verdade eram as mesmas reuniões com identificadores
+  diferentes. Agora só aparece o que realmente mudou dos dois lados.
+- Importar o mesmo arquivo duas vezes voltava a propor alterações; agora a segunda
+  importação não encontra nada a fazer.
+
+### Alterado
+- O APK passa a ser assinado sempre com a mesma chave, guardada no repositório. Antes
+  cada máquina (e cada execução do CI) assinava com uma chave própria, e o Android
+  recusava instalar a versão nova por cima — era preciso desinstalar, o que apaga os
+  dados do aparelho. **Só desta vez** será necessário desinstalar antes de atualizar,
+  porque a chave mudou; exporte seus dados antes.
+
 ## [1.0.3] - 2026-08-04
 
 ### Corrigido

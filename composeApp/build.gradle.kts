@@ -85,6 +85,24 @@ android {
     namespace = "com.example.sonntag"
     compileSdk = 35
 
+    /**
+     * Keystore de debug versionada no repositorio.
+     *
+     * Sem ela, cada maquina (e cada execucao do CI) assina com uma chave propria, e o
+     * Android recusa instalar a nova versao por cima — obrigando a desinstalar, o que
+     * apaga os dados do aparelho. Com uma chave fixa, atualizar funciona.
+     *
+     * Nao serve para publicar em loja: a senha esta aqui, a vista.
+     */
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "sonntag-debug"
+            keyPassword = "android"
+        }
+    }
+
     defaultConfig {
         applicationId = "com.example.sonntag"
         // 26 e o piso do java.util.Base64 e do java.time usados no pacote de dados.

@@ -91,6 +91,10 @@ Requiere **JDK 17**. Kotlin Multiplatform con Compose Multiplatform (solo escrit
 Los instaladores solo se generan en el sistema de destino: jpackage no compila para
 otra plataforma.
 
+El APK se firma con `composeApp/debug.keystore`, versionada aquí a propósito: con una
+clave fija, una versión nueva se instala sobre la anterior sin borrar los datos. No
+sirve para publicar en tiendas — la contraseña está a la vista.
+
 | Componente | Uso |
 | ---------- | --- |
 | Compose Multiplatform | interfaz |

@@ -207,14 +207,7 @@ class DataTransferViewModel(
             _uiState.value = state.copy(isBusy = true)
             val t = localeController.translator
             try {
-                val rows = preview.rows.filter {
-                    when (it.kind) {
-                        ChangeKind.NOVO, ChangeKind.ATUALIZA -> true
-                        ChangeKind.DIVERGE -> it.uuid in state.acceptedConflicts
-                        else -> false
-                    }
-                }
-                val applied = syncService.apply(rows)
+                val applied = syncService.apply(preview, state.acceptedConflicts)
                 _uiState.value = _uiState.value.copy(
                     isBusy = false,
                     preview = null,

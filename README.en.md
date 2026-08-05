@@ -89,6 +89,10 @@ Requires **JDK 17**. Kotlin Multiplatform with Compose Multiplatform (desktop/JV
 
 Installers can only be produced on the target system — jpackage does not cross-compile.
 
+The APK is signed with `composeApp/debug.keystore`, versioned here on purpose: with a
+fixed key, a new build installs over the previous one without wiping the data. It is not
+suitable for store publishing — the password is in plain sight.
+
 | Component | Purpose |
 | --------- | ------- |
 | Compose Multiplatform | user interface |

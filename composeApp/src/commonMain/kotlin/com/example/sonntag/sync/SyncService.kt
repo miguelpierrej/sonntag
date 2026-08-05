@@ -79,6 +79,13 @@ data class IncomingRow(
 data class ImportPreview(
     val header: PackageHeader,
     val rows: List<IncomingRow>,
+    /**
+     * uuid que chegou -> uuid daqui, para toda linha reconhecida pela chave natural.
+     *
+     * Inclui as linhas identicas, que ficam fora de [rows]: mesmo sem nada a gravar,
+     * elas dizem a que reuniao daqui um programa que chegou se refere.
+     */
+    val aliases: Map<String, String> = emptyMap(),
 ) {
     val novos: Int get() = rows.count { it.kind == ChangeKind.NOVO }
     val atualizacoes: Int get() = rows.count { it.kind == ChangeKind.ATUALIZA }
@@ -166,6 +173,10 @@ class SyncService(
             store.uuidToLocalId(table).keys + chegando[table].orEmpty()
         }
 
+        // Preenchido tabela a tabela; as reunioes chegam antes dos programas, entao
+        // quando um programa e avaliado o apelido da sua reuniao ja existe.
+        val apelidos = mutableMapOf<String, String>()
+
         val rows = tables.flatMap { table ->
             val localByUuid = store.uuidToLocalId(table.name)
             val obrigatorias = store.notNullColumns(table.name)
@@ -204,13 +215,25 @@ class SyncService(
                 val kind = when {
                     referenciaQuebrada -> ChangeKind.IGNORADO
                     local == null -> ChangeKind.NOVO
-                    sameContent(local.mapValues { (c, v) -> toUuid(paraUuid, c, v) }, row, table.columns) ->
-                        ChangeKind.IGUAL
+                    // Quando o par veio da chave natural, os uuids sao diferentes por
+                    // definicao — comparar por eles transformaria toda a agenda em
+                    // divergencia. O que importa e o resto do conteudo.
+                    sameContent(
+                        local.mapValues { (c, v) -> toUuid(paraUuid, c, v) },
+                        // A referencia pode apontar para uma linha que aqui tem outro
+                        // uuid (mesma reuniao gerada dos dois lados): sem traduzir, o
+                        // programa pareceria diferente a cada importacao.
+                        row.mapValues { (c, v) ->
+                            if (referencedTable(c) != null && v != null) apelidos[v] ?: v else v
+                        },
+                        if (uuidLocal != null) table.columns - "uuid" else table.columns,
+                    ) -> ChangeKind.IGUAL
                     // Nada aqui prova quem viu o que: se os dois lados mudaram, a
                     // decisao e do usuario. So o carimbo mais novo sugere o padrao.
                     else -> if (local["updated_by"] == row["updated_by"]) ChangeKind.ATUALIZA
                     else ChangeKind.DIVERGE
                 }
+                uuidLocal?.let { apelidos[uuid] = it }
                 IncomingRow(
                     table = table.name,
                     uuid = uuid,
@@ -223,14 +246,35 @@ class SyncService(
                 )
             }
         }
-        return ImportPreview(header, rows.filter { it.kind != ChangeKind.IGUAL })
+        return ImportPreview(
+            header = header,
+            rows = rows.filter { it.kind != ChangeKind.IGUAL },
+            aliases = apelidos.toMap(),
+        )
     }
 
-    /** Grava as linhas aceitas, traduzindo as referencias para os ids locais. */
-    fun apply(rows: List<IncomingRow>): Int {
+    /**
+     * Grava o que foi aceito, traduzindo as referencias para os ids locais.
+     *
+     * Recebe o preview inteiro, e nao so as linhas escolhidas, porque uma linha que o
+     * usuario decidiu **nao** aplicar ainda assim diz a que linha local o uuid que
+     * chegou corresponde — sem isso, um programa nao acha a sua reuniao.
+     */
+    fun apply(preview: ImportPreview, divergenciasAceitas: Set<String> = emptySet()): Int {
+        val apelido = preview.aliases
+
+        val aGravar = preview.rows.filter {
+            when (it.kind) {
+                ChangeKind.NOVO, ChangeKind.ATUALIZA -> true
+                ChangeKind.DIVERGE -> it.uuid in divergenciasAceitas
+                else -> false
+            }
+        }
+
         var aplicadas = 0
-        rows.filter { it.kind != ChangeKind.IGNORADO }.groupBy { it.table }.forEach { (table, tableRows) ->
+        aGravar.groupBy { it.table }.forEach { (table, tableRows) ->
             val columns = store.columns(table).filter { it != LOCAL_ID }
+            val obrigatorias = store.notNullColumns(table)
             val referenceMaps = columns.mapNotNull { column ->
                 referencedTable(column)?.let { column to store.uuidToLocalId(it) }
             }.toMap()
@@ -238,18 +282,19 @@ class SyncService(
             tableRows.forEach { incoming ->
                 val values = columns.associateWith { column ->
                     val raw = incoming.values[column]
-                    // Referencia chegou como uuid: vira o id daqui, ou null se a
-                    // linha apontada nao existe nesta instalacao.
                     if (referenceMaps.containsKey(column)) {
-                        raw?.let { referenceMaps.getValue(column)[it]?.toString() }
+                        // A referencia chegou como uuid; pode apontar para uma linha que
+                        // aqui tem outro uuid (mesma reuniao, gerada dos dois lados).
+                        raw?.let { referenceMaps.getValue(column)[apelido[it] ?: it]?.toString() }
                     } else {
                         raw
                     }
                 }
+                // Referencia obrigatoria sem destino: pular em vez de estourar.
+                if (obrigatorias.any { it in referenceMaps && values[it] == null }) return@forEach
+
                 val alvo = incoming.localUuid ?: incoming.uuid
                 if (store.uuidToLocalId(table).containsKey(alvo)) {
-                    // Reconhecida pela chave natural: adota o uuid que chegou, para os
-                    // proximos pacotes casarem direto e as referencias resolverem.
                     store.updateByUuid(table, alvo, values, allowUuidChange = incoming.localUuid != null)
                 } else {
                     store.insert(table, values)
