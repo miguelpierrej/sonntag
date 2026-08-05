@@ -3,10 +3,14 @@ package com.example.sonntag.ui.screens.midweek
 import com.example.sonntag.i18n.tr
 import com.example.sonntag.i18n.LocalT
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -26,6 +30,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
+import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material.icons.outlined.UploadFile
 import androidx.compose.material3.AlertDialog
@@ -54,6 +59,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextOverflow
@@ -67,8 +73,7 @@ import com.example.sonntag.ui.layout.LocalWindowSize
 import kotlinx.coroutines.yield
 import org.koin.compose.koinInject
 
-private val LeftColumnWidth = 280.dp
-private val EditorMaxWidth = 760.dp
+private val CardMaxWidth = 980.dp
 
 @Composable
 fun MidweekProgramsScreenContent() {
@@ -134,98 +139,119 @@ fun MidweekProgramsScreenContent() {
             return@ScreenScaffold
         }
 
-        val compact = LocalWindowSize.current.isCompact
-        // No celular a lista e o editor nao cabem lado a lado: viram duas etapas.
-        var showingDetail by rememberSaveable { mutableStateOf(false) }
-        val detailVisible = selected != null && selectedIsInVisibleMonth
+        MonthNavigator(
+            year = state.visibleYear,
+            month = state.visibleMonth,
+            onPrev = viewModel::showPreviousMonth,
+            onNext = viewModel::showNextMonth,
+            modifier = Modifier.widthIn(max = CardMaxWidth),
+        )
 
-        val lista = @Composable { modifier: Modifier ->
-            MeetingListPane(
-                modifier = modifier,
-                meetings = visibleMeetings,
-                selectedId = state.selectedMeetingId,
-                year = state.visibleYear,
-                month = state.visibleMonth,
-                onPrev = viewModel::showPreviousMonth,
-                onNext = viewModel::showNextMonth,
-                onSelect = {
-                    viewModel.selectMeeting(it)
-                    showingDetail = true
-                },
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (visibleMeetings.isEmpty()) {
+            EmptyState(
+                icon = Icons.AutoMirrored.Outlined.MenuBook,
+                title = tr("Nenhuma reunião neste mês"),
+                description = tr("Navegue para outro mês ou cadastre dias de reunião em Configurações."),
             )
-        }
-
-        val editor = @Composable {
-            if (!detailVisible) {
-                EmptyState(
-                    icon = Icons.AutoMirrored.Outlined.MenuBook,
-                    title = tr("Selecione uma reunião para editar"),
-                    description = tr("Escolha uma reunião na lista ao lado para preencher a programação de meio de semana."),
-                )
-            } else {
-                ProgramEditor(
-                    item = selected!!,
-                    form = state.form,
-                    members = state.members,
-                    isReadOnly = state.isReadOnly,
-                    onUpdate = viewModel::updateForm,
-                )
-            }
-        }
-
-        if (compact) {
-            if (showingDetail && detailVisible) {
-                Column(modifier = Modifier.fillMaxSize()) {
-                    BackToListButton(onClick = { showingDetail = false })
-                    Spacer(modifier = Modifier.height(8.dp))
-                    editor()
-                }
-            } else {
-                lista(Modifier.fillMaxSize())
-            }
         } else {
-            Row(modifier = Modifier.fillMaxSize()) {
-                lista(Modifier.fillMaxHeight().width(LeftColumnWidth))
-                Spacer(modifier = Modifier.width(24.dp))
-                Box(modifier = Modifier.fillMaxSize()) { editor() }
+            // A reuniao que vem a seguir ja nasce aberta: e a que se costuma preencher.
+            val proximaId = (visibleMeetings.firstOrNull { !it.isPast } ?: visibleMeetings.first()).id
+
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                items(visibleMeetings, key = { it.id }) { item ->
+                    MeetingCard(
+                        item = item,
+                        members = state.members,
+                        selected = item.id == state.selectedMeetingId,
+                        startsExpanded = item.id == proximaId,
+                        onSelect = { viewModel.selectMeeting(item.id) },
+                        onUpdate = { transform -> viewModel.updateForm(item.id, transform) },
+                    )
+                }
             }
         }
     }
 }
 
-/** Navegador de mes + lista de reunioes. Coluna fixa no desktop, tela inteira no celular. */
+/**
+ * Uma reuniao por cartao. O formulario do S-140 tem dezenas de campos, entao o
+ * cartao nasce recolhido: aberto, seriam varias telas de rolagem por semana.
+ */
 @Composable
-private fun MeetingListPane(
-    modifier: Modifier,
-    meetings: List<MidweekMeetingItem>,
-    selectedId: Long?,
-    year: Int,
-    month: Int,
-    onPrev: () -> Unit,
-    onNext: () -> Unit,
-    onSelect: (Long) -> Unit,
+private fun MeetingCard(
+    item: MidweekMeetingItem,
+    members: List<Members>,
+    selected: Boolean,
+    startsExpanded: Boolean,
+    onSelect: () -> Unit,
+    onUpdate: ((MidweekProgramInput) -> MidweekProgramInput) -> Unit,
 ) {
-    Column(modifier = modifier) {
-        MonthNavigator(year = year, month = month, onPrev = onPrev, onNext = onNext)
-        Spacer(modifier = Modifier.height(12.dp))
-        if (meetings.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    tr("Nenhuma reunião neste mês"),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+    var expanded by rememberSaveable(item.id) { mutableStateOf(startsExpanded) }
+    val alphaMod = if (item.isPast) 0.6f else 1f
+    val rotation by animateFloatAsState(if (expanded) 180f else 0f, label = "chevron")
+
+    Card(
+        modifier = Modifier.fillMaxWidth().widthIn(max = CardMaxWidth),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (selected) 3.dp else 1.dp),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                // Sem realce: o clique cobre a largura toda e o hover padrao do
+                // Material pintaria uma faixa cinza sobre o cabecalho.
+                modifier = Modifier.fillMaxWidth().clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                ) {
+                    onSelect()
+                    expanded = !expanded
+                },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = item.dateLabelShort,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = alphaMod),
+                    )
+                    val resumo = listOfNotNull(
+                        item.summary,
+                        members.firstOrNull { it.id == item.presidenteId }?.let { "${it.nome} ${it.sobrenome}" },
+                    ).joinToString(" • ").ifBlank { tr("Sem programação") }
+                    Text(
+                        text = resumo,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alphaMod),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                if (item.isPast) {
+                    Badge(text = tr("Realizada"))
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+                Icon(
+                    imageVector = Icons.Outlined.ExpandMore,
+                    contentDescription = if (expanded) tr("Recolher") else tr("Expandir"),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp).rotate(rotation),
                 )
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                items(meetings, key = { it.id }) { item ->
-                    MeetingListItem(
-                        item = item,
-                        selected = item.id == selectedId,
-                        onClick = { onSelect(item.id) },
+
+            AnimatedVisibility(visible = expanded) {
+                Column {
+                    Spacer(modifier = Modifier.height(14.dp))
+                    ProgramEditor(
+                        form = item.form,
+                        members = members,
+                        isReadOnly = item.isPast,
+                        onUpdate = onUpdate,
                     )
                 }
             }
@@ -234,71 +260,7 @@ private fun MeetingListPane(
 }
 
 @Composable
-private fun BackToListButton(onClick: () -> Unit) {
-    TextButton(onClick = onClick) {
-        Icon(
-            imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-            contentDescription = null,
-            modifier = Modifier.size(18.dp),
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(tr("Voltar à lista"))
-    }
-}
-
-@Composable
-private fun MeetingListItem(
-    item: MidweekMeetingItem,
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
-    val colors = MaterialTheme.colorScheme
-    val bg = if (selected) colors.primary.copy(alpha = 0.10f) else Color.Transparent
-    val titleColor = if (selected) colors.primary else colors.onSurface
-    val alphaMod = if (item.isPast) 0.6f else 1f
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(bg, RoundedCornerShape(8.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = LocalT.current.longDate(item.date),
-                style = MaterialTheme.typography.titleMedium,
-                color = titleColor.copy(alpha = alphaMod),
-                modifier = Modifier.weight(1f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (item.isPast) {
-                Spacer(modifier = Modifier.width(8.dp))
-                Badge(text = tr("Realizada"))
-            }
-        }
-        Spacer(modifier = Modifier.height(2.dp))
-        val secondary = if (item.summary.isNullOrBlank()) {
-            "${item.time} — ${tr("Sem programação")}"
-        } else {
-            "${item.time} — ${item.summary}"
-        }
-        Text(
-            text = secondary,
-            style = MaterialTheme.typography.bodySmall.copy(
-                fontStyle = if (item.summary.isNullOrBlank()) FontStyle.Italic else FontStyle.Normal,
-            ),
-            color = colors.onSurfaceVariant.copy(alpha = alphaMod),
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-@Composable
 private fun ProgramEditor(
-    item: MidweekMeetingItem,
     form: MidweekProgramInput,
     members: List<Members>,
     isReadOnly: Boolean,
@@ -306,29 +268,7 @@ private fun ProgramEditor(
 ) {
     val enabled = !isReadOnly
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .widthIn(max = EditorMaxWidth)
-            .verticalScroll(rememberScrollState()),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = LocalT.current.longDateWithYear(item.date),
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f),
-            )
-            if (isReadOnly) Badge(text = tr("Realizada"))
-        }
-        Spacer(modifier = Modifier.height(2.dp))
-        Text(
-            text = tr("Reunião de meio de semana às {0}", item.time),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-
+    Column(modifier = Modifier.fillMaxWidth()) {
         // Cabecalho
         SectionCard(title = tr("Cabeçalho")) {
             FormTextField(
@@ -647,7 +587,7 @@ private fun LifePart(
 @Composable
 private fun SectionCard(title: String, content: @Composable () -> Unit) {
     Card(
-        modifier = Modifier.fillMaxWidth().widthIn(max = EditorMaxWidth),
+        modifier = Modifier.fillMaxWidth().widthIn(max = CardMaxWidth),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),

@@ -20,6 +20,27 @@ internal fun referencedTable(column: String): String? = when {
 /** Colunas que nunca viajam: o id e local e o uuid identifica a linha. */
 private const val LOCAL_ID = "id"
 
+/**
+ * Colunas que identificam a linha quando o uuid ainda nao coincide entre duas
+ * instalacoes.
+ *
+ * Reunioes, dias e semanas de limpeza sao **derivados**: cada instalacao gera os
+ * seus a partir da mesma configuracao, com uuids diferentes. Sem esta chave, a
+ * importacao acha que sao linhas novas e duplica a agenda inteira — uma copia com
+ * programa e outra vazia.
+ *
+ * `members` fica de fora de proposito: dois homonimos sao pessoas diferentes.
+ */
+internal fun naturalKey(table: String): List<String>? = when (table) {
+    "meetings" -> listOf("data", "hora", "tipo")
+    "meeting_days" -> listOf("dia_semana", "hora")
+    "cleaning_groups" -> listOf("nome")
+    "cleaning_assignments" -> listOf("semana_iso", "ano")
+    "weekend_programs", "midweek_programs", "av_assignments" -> listOf("meeting_id")
+    "settings" -> emptyList() // singleton: a linha e sempre a mesma
+    else -> null
+}
+
 /** O que a importacao fara com uma linha. */
 enum class ChangeKind {
     NOVO,
@@ -42,6 +63,12 @@ enum class ChangeKind {
 data class IncomingRow(
     val table: String,
     val uuid: String,
+    /**
+     * Preenchido quando a linha foi reconhecida pela chave natural, e nao pelo uuid.
+     * A gravacao entao atualiza essa linha (adotando o uuid que chegou) em vez de
+     * inserir outra.
+     */
+    val localUuid: String? = null,
     val kind: ChangeKind,
     val description: String,
     val localUpdatedAt: String?,
@@ -150,9 +177,25 @@ class SyncService(
             val paraUuid = table.columns.mapNotNull { column ->
                 referencedTable(column)?.let { column to store.localIdToUuid(it) }
             }.toMap()
+            // Indice pela chave natural, com as referencias convertidas para uuid,
+            // para comparar na mesma moeda do arquivo.
+            val chave = naturalKey(table.name)
+            val porChaveNatural: Map<String, String> = if (chave == null) emptyMap() else {
+                store.rows(table.name, table.columns).mapNotNull { linha ->
+                    val u = linha["uuid"] ?: return@mapNotNull null
+                    chaveDe(linha, chave, paraUuid)?.let { it to u }
+                }.toMap()
+            }
+
             table.rows.mapNotNull { row ->
                 val uuid = row["uuid"] ?: return@mapNotNull null
-                val local = localByUuid[uuid]?.let { store.findByUuid(table.name, uuid, table.columns) }
+                // Sem par por uuid, tenta a chave natural: a mesma reuniao gerada dos
+                // dois lados nasce com uuids diferentes.
+                val uuidLocal = if (localByUuid.containsKey(uuid)) null
+                    else chave?.let { chaveDe(row, it, emptyMap()) }?.let { porChaveNatural[it] }
+                val uuidBusca = uuidLocal ?: uuid
+                val local = (localByUuid[uuidBusca] ?: uuidLocal?.let { 1L })
+                    ?.let { store.findByUuid(table.name, uuidBusca, table.columns) }
                 // Referencia obrigatoria sem destino torna a linha inaproveitavel:
                 // inseri-la violaria o NOT NULL.
                 val referenciaQuebrada = referencias.any { (column, disponiveis) ->
@@ -171,6 +214,7 @@ class SyncService(
                 IncomingRow(
                     table = table.name,
                     uuid = uuid,
+                    localUuid = uuidLocal,
                     kind = kind,
                     description = describe(table.name, row),
                     localUpdatedAt = local?.get("updated_at"),
@@ -202,8 +246,11 @@ class SyncService(
                         raw
                     }
                 }
-                if (store.uuidToLocalId(table).containsKey(incoming.uuid)) {
-                    store.updateByUuid(table, incoming.uuid, values)
+                val alvo = incoming.localUuid ?: incoming.uuid
+                if (store.uuidToLocalId(table).containsKey(alvo)) {
+                    // Reconhecida pela chave natural: adota o uuid que chegou, para os
+                    // proximos pacotes casarem direto e as referencias resolverem.
+                    store.updateByUuid(table, alvo, values, allowUuidChange = incoming.localUuid != null)
                 } else {
                     store.insert(table, values)
                 }
@@ -211,6 +258,22 @@ class SyncService(
             }
         }
         return aplicadas
+    }
+
+    /** Chave natural em texto. Referencias entram ja convertidas para uuid. */
+    private fun chaveDe(
+        row: RowValues,
+        colunas: List<String>,
+        paraUuid: Map<String, Map<Long, String>>,
+    ): String? {
+        if (colunas.isEmpty()) return "singleton"
+        val partes = colunas.map { coluna ->
+            val bruto = row[coluna]
+            if (paraUuid.containsKey(coluna)) toUuid(paraUuid, coluna, bruto) else bruto
+        }
+        // Chave incompleta nao identifica nada — melhor tratar como linha nova.
+        if (partes.any { it == null }) return null
+        return partes.joinToString("\u0000")
     }
 
     /** Converte o id local de uma referencia no uuid correspondente. */

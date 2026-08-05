@@ -3,6 +3,7 @@ package com.example.sonntag.ui.screens.av
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -57,6 +58,10 @@ import com.example.sonntag.ui.components.ScreenScaffold
 import org.koin.compose.koinInject
 
 private val CardMaxWidth = 980.dp
+
+/** Cada coluna precisa de ~220dp para o nome nao ser cortado. */
+private val MIN_WIDTH_FOR_FOUR_COLUMNS = 900.dp
+private val MIN_WIDTH_FOR_TWO_COLUMNS = 460.dp
 
 @Composable
 fun AvAssignmentsScreenContent() {
@@ -184,35 +189,55 @@ private fun MeetingCard(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Quatro colunas, na mesma ordem das colunas do PDF.
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                @Composable
-                fun Slot(label: String, role: AvRole) {
-                    MemberSlot(
-                        label = label,
-                        members = members,
-                        selectedId = item.memberId(role),
-                        enabled = !item.isPast,
-                        conflictRoles = item.conflictsFor(role),
-                        onSelected = { onRoleChanged(role, it) },
-                    )
-                }
+            @Composable
+            fun Slot(label: String, role: AvRole) {
+                MemberSlot(
+                    label = label,
+                    members = members,
+                    selectedId = item.memberId(role),
+                    enabled = !item.isPast,
+                    conflictRoles = item.conflictsFor(role),
+                    onSelected = { onRoleChanged(role, it) },
+                )
+            }
 
-                RoleColumn(title = tr("Áudio e vídeo"), modifier = Modifier.weight(1f)) {
+            val grupos = listOf<Pair<String, @Composable () -> Unit>>(
+                tr("Áudio e vídeo") to {
                     Slot(tr("Áudio"), AvRole.AUDIO)
                     Slot(tr("Vídeo"), AvRole.VIDEO)
-                }
-                RoleColumn(title = tr("Plataforma"), modifier = Modifier.weight(1f)) {
+                },
+                tr("Plataforma") to {
                     Slot(tr("Plataforma 1"), AvRole.PLATAFORMA1)
                     Slot(tr("Plataforma 2"), AvRole.PLATAFORMA2)
-                }
-                RoleColumn(title = tr("Microfones"), modifier = Modifier.weight(1f)) {
+                },
+                tr("Microfones") to {
                     Slot(tr("Microfone 1"), AvRole.MICROFONE1)
                     Slot(tr("Microfone 2"), AvRole.MICROFONE2)
-                }
-                RoleColumn(title = tr("Acomodadores"), modifier = Modifier.weight(1f)) {
+                },
+                tr("Acomodadores") to {
                     Slot(tr("Acomodador do auditório"), AvRole.ACOMODADOR1)
                     Slot(tr("Acomodador da entrada"), AvRole.ACOMODADOR2)
+                },
+            )
+
+            // Quatro colunas, na mesma ordem das do PDF — mas so quando ha largura.
+            // Abaixo disso os nomes ficariam cortados no meio ("Alexander C…").
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                val porLinha = when {
+                    maxWidth >= MIN_WIDTH_FOR_FOUR_COLUMNS -> 4
+                    maxWidth >= MIN_WIDTH_FOR_TWO_COLUMNS -> 2
+                    else -> 1
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    grupos.chunked(porLinha).forEach { linha ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            linha.forEach { (titulo, conteudo) ->
+                                RoleColumn(title = titulo, modifier = Modifier.weight(1f)) { conteudo() }
+                            }
+                            // Mantem o alinhamento quando a ultima linha vem incompleta.
+                            repeat(porLinha - linha.size) { Spacer(modifier = Modifier.weight(1f)) }
+                        }
+                    }
                 }
             }
         }

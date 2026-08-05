@@ -59,9 +59,15 @@ class SyncStore(private val driver: SqlDriver) {
         }.value
     }
 
-    /** Atualiza pelo uuid, nunca pelo id: o id do outro lado nao vale aqui. */
-    fun updateByUuid(table: String, uuid: String, values: RowValues) {
-        val cols = values.keys.filter { it != "id" && it != "uuid" }
+    /**
+     * Atualiza pelo uuid, nunca pelo id: o id do outro lado nao vale aqui.
+     *
+     * [allowUuidChange] serve ao caso em que a linha foi reconhecida pela chave
+     * natural: adotar o uuid que chegou faz as duas instalacoes convergirem para a
+     * mesma identidade.
+     */
+    fun updateByUuid(table: String, uuid: String, values: RowValues, allowUuidChange: Boolean = false) {
+        val cols = values.keys.filter { it != "id" && (allowUuidChange || it != "uuid") }
         if (cols.isEmpty()) return
         val sql = "UPDATE $table SET ${cols.joinToString(", ") { "$it = ?" }} WHERE uuid = ?"
         driver.execute(null, sql, cols.size + 1) {

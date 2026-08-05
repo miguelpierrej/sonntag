@@ -18,6 +18,8 @@ import com.example.sonntag.i18n.LocaleController
 import com.example.sonntag.i18n.Translator
 import com.example.sonntag.ui.layout.LocalWindowSize
 import com.example.sonntag.ui.layout.WindowSize
+import com.example.sonntag.ui.screens.av.AvAssignmentsScreenContent
+import com.example.sonntag.ui.screens.cleaning.CleaningScreenContent
 import com.example.sonntag.ui.screens.midweek.MidweekProgramsScreenContent
 import com.example.sonntag.ui.screens.weekend.WeekendProgramsScreenContent
 import com.example.sonntag.ui.theme.AppTheme
@@ -37,10 +39,18 @@ fun main(args: Array<String>) {
     val outDir = File(args[0]).apply { mkdirs() }
     val tela = args.getOrElse(1) { "painel" }
 
-    val alvos = listOf(
+    // Larguras UTEIS: no desktop e no tablet a gaveta permanente ja consumiu 240dp,
+    // entao a tela recebe menos que a janela.
+    // "app" usa as dimensoes reais do aparelho (o shell mede sozinho o que sobra);
+    // as demais telas sao desenhadas ja na largura util.
+    val alvos = if (tela == "app") listOf(
         Triple("celular-s23", 411, 891),
         Triple("tablet-retrato", 720, 1150),
-        Triple("tablet-paisagem", 1150, 720),
+        Triple("tablet-paisagem", 1152, 720),
+    ) else listOf(
+        Triple("celular-411", 411, 891),
+        Triple("tablet-retrato-util-480", 480, 1150),
+        Triple("tablet-paisagem-util-910", 910, 720),
     )
 
     alvos.forEach { (nome, larguraDp, alturaDp) ->
@@ -66,7 +76,7 @@ fun main(args: Array<String>) {
 
 @Composable
 private fun Conteudo(tela: String, larguraDp: Int) {
-    if (tela == "painel") {
+    if (tela == "painel" || tela == "app") {
         App()
         return
     }
@@ -82,6 +92,8 @@ private fun Conteudo(tela: String, larguraDp: Int) {
                 when (tela) {
                     "fim-de-semana" -> WeekendProgramsScreenContent()
                     "meio-de-semana" -> MidweekProgramsScreenContent()
+                    "av" -> AvAssignmentsScreenContent()
+                    "limpeza" -> CleaningScreenContent()
                 }
             }
         }

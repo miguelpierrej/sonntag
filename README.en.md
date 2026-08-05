@@ -24,6 +24,10 @@ printing or sharing.
 - **Imports** — the meeting workbook (`mwb`, a PDF) fills in the midweek program; the
   **S-34** (`.jwpub`) loads all 194 public talk outlines into a pick list on the talk
   title field.
+- **Sharing data** — under Settings › Data you export the blocks you choose to an
+  encrypted `.sonntag` file (password optional) that another installation imports.
+  Nothing is written before you review a summary, and you decide record by record what
+  to do when both sides changed.
 - **Offline** — no internet connection or account required; data never leaves the machine.
 
 ## Installation
@@ -48,6 +52,8 @@ APK on the device and allow installation from unknown sources.
 3. Add your **publishers** and, under Settings, the **cleaning groups**.
 4. Optional: use **Import S-34** on the weekend screen to get the outline list, and
    **Import workbook** on the midweek screen to fill in the weeks of the month.
+5. To work on more than one device, export your data under **Settings › Data** and import
+   it on the other one. Each installation keeps its own; the file is the bridge.
 
 ## Language
 

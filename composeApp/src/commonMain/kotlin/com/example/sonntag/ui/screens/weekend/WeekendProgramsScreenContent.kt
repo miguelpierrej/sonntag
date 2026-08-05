@@ -4,9 +4,11 @@ import com.example.sonntag.i18n.tr
 import com.example.sonntag.i18n.LocalT
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -67,8 +69,10 @@ import com.example.sonntag.ui.layout.LocalWindowSize
 import kotlinx.coroutines.yield
 import org.koin.compose.koinInject
 
-private val LeftColumnWidth = 280.dp
-private val EditorMaxWidth = 720.dp
+private val CardMaxWidth = 980.dp
+
+/** Cada campo precisa de ~230dp para o nome nao ser cortado. */
+private val MIN_WIDTH_FOR_TWO_COLUMNS = 520.dp
 
 @Composable
 fun WeekendProgramsScreenContent() {
@@ -140,70 +144,41 @@ fun WeekendProgramsScreenContent() {
             return@ScreenScaffold
         }
 
-        val compact = LocalWindowSize.current.isCompact
-        // No celular a lista e o editor nao cabem lado a lado: viram duas etapas.
-        var showingDetail by rememberSaveable { mutableStateOf(false) }
-        val detailVisible = selected != null && selectedIsInVisibleMonth
+        MonthNavigator(
+            year = state.visibleYear,
+            month = state.visibleMonth,
+            onPrev = viewModel::showPreviousMonth,
+            onNext = viewModel::showNextMonth,
+            modifier = Modifier.widthIn(max = CardMaxWidth),
+        )
 
-        val lista = @Composable { modifier: Modifier ->
-            MeetingListPane(
-                modifier = modifier,
-                meetings = visibleMeetings,
-                selectedId = state.selectedMeetingId,
-                year = state.visibleYear,
-                month = state.visibleMonth,
-                onPrev = viewModel::showPreviousMonth,
-                onNext = viewModel::showNextMonth,
-                onSelect = {
-                    viewModel.selectMeeting(it)
-                    showingDetail = true
-                },
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (visibleMeetings.isEmpty()) {
+            EmptyState(
+                icon = Icons.Outlined.EventAvailable,
+                title = tr("Nenhuma reunião neste mês"),
+                description = tr("Navegue para outro mês ou cadastre dias de reunião em Configurações."),
             )
-        }
-
-        val editor = @Composable {
-            if (!detailVisible) {
-                EmptyState(
-                    icon = Icons.Outlined.EventAvailable,
-                    title = tr("Selecione uma reunião para editar"),
-                    description = tr("Escolha uma reunião na lista ao lado para preencher a programação."),
-                )
-            } else {
-                ProgramEditor(
-                    item = selected!!,
-                    tituloDiscurso = state.tituloDiscurso,
-                    talkOutlines = state.talkOutlines,
-                    oradorId = state.oradorId,
-                    oradorNome = state.oradorNome,
-                    presidenteId = state.presidenteId,
-                    dirigenteId = state.dirigenteId,
-                    leitorId = state.leitorId,
-                    members = state.members,
-                    isReadOnly = state.isReadOnly,
-                    onTituloChanged = viewModel::onTituloChanged,
-                    onOradorChanged = viewModel::onOradorChanged,
-                    onPresidenteChanged = viewModel::onPresidenteChanged,
-                    onDirigenteChanged = viewModel::onDirigenteChanged,
-                    onLeitorChanged = viewModel::onLeitorChanged,
-                )
-            }
-        }
-
-        if (compact) {
-            if (showingDetail && detailVisible) {
-                Column(modifier = Modifier.fillMaxSize()) {
-                    BackToListButton(onClick = { showingDetail = false })
-                    Spacer(modifier = Modifier.height(8.dp))
-                    editor()
-                }
-            } else {
-                lista(Modifier.fillMaxSize())
-            }
         } else {
-            Row(modifier = Modifier.fillMaxSize()) {
-                lista(Modifier.fillMaxHeight().width(LeftColumnWidth))
-                Spacer(modifier = Modifier.width(24.dp))
-                Box(modifier = Modifier.fillMaxSize()) { editor() }
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                items(visibleMeetings, key = { it.id }) { item ->
+                    MeetingCard(
+                        item = item,
+                        talkOutlines = state.talkOutlines,
+                        members = state.members,
+                        selected = item.id == state.selectedMeetingId,
+                        onSelect = { viewModel.selectMeeting(item.id) },
+                        onTituloChanged = { viewModel.onTituloChanged(item.id, it) },
+                        onOradorChanged = { id, nome -> viewModel.onOradorChanged(item.id, id, nome) },
+                        onPresidenteChanged = { viewModel.onPresidenteChanged(item.id, it) },
+                        onDirigenteChanged = { viewModel.onDirigenteChanged(item.id, it) },
+                        onLeitorChanged = { viewModel.onLeitorChanged(item.id, it) },
+                    )
+                }
             }
         }
     }
@@ -281,211 +256,146 @@ private fun ExportMenu(
     }
 }
 
-/** Navegador de mes + lista de reunioes. Coluna fixa no desktop, tela inteira no celular. */
-@Composable
-private fun MeetingListPane(
-    modifier: Modifier,
-    meetings: List<WeekendMeetingItem>,
-    selectedId: Long?,
-    year: Int,
-    month: Int,
-    onPrev: () -> Unit,
-    onNext: () -> Unit,
-    onSelect: (Long) -> Unit,
-) {
-    Column(modifier = modifier) {
-        MonthNavigator(year = year, month = month, onPrev = onPrev, onNext = onNext)
-        Spacer(modifier = Modifier.height(12.dp))
-        if (meetings.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    tr("Nenhuma reunião neste mês"),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                items(meetings, key = { it.id }) { item ->
-                    MeetingListItem(
-                        item = item,
-                        selected = item.id == selectedId,
-                        onClick = { onSelect(item.id) },
-                    )
-                }
-            }
-        }
-    }
-}
 
+/**
+ * Uma reuniao por cartao, com a programacao dentro — o mesmo formato da tela de
+ * audio/video. Os campos se reorganizam conforme a largura disponivel.
+ */
 @Composable
-private fun BackToListButton(onClick: () -> Unit) {
-    TextButton(onClick = onClick) {
-        Icon(
-            imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-            contentDescription = null,
-            modifier = Modifier.size(18.dp),
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(tr("Voltar à lista"))
-    }
-}
-
-@Composable
-private fun MeetingListItem(
+private fun MeetingCard(
     item: WeekendMeetingItem,
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
-    val colors = MaterialTheme.colorScheme
-    val bg = if (selected) colors.primary.copy(alpha = 0.10f) else Color.Transparent
-    val titleColor = if (selected) colors.primary else colors.onSurface
-    val alphaMod = if (item.isPast) 0.6f else 1f
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(bg, RoundedCornerShape(8.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = LocalT.current.longDate(item.date),
-                style = MaterialTheme.typography.titleMedium,
-                color = titleColor.copy(alpha = alphaMod),
-                modifier = Modifier.weight(1f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (item.isPast) {
-                Spacer(modifier = Modifier.width(8.dp))
-                Badge(text = tr("Realizada"))
-            }
-        }
-        Spacer(modifier = Modifier.height(2.dp))
-        val secondary = if (item.titleSummary.isNullOrBlank()) {
-            "${item.time} — ${tr("Sem programação")}"
-        } else {
-            "${item.time} — ${item.titleSummary}"
-        }
-        Text(
-            text = secondary,
-            style = MaterialTheme.typography.bodySmall.copy(
-                fontStyle = if (item.titleSummary.isNullOrBlank()) FontStyle.Italic else FontStyle.Normal,
-            ),
-            color = colors.onSurfaceVariant.copy(alpha = alphaMod),
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-@Composable
-private fun ProgramEditor(
-    item: WeekendMeetingItem,
-    tituloDiscurso: String,
     talkOutlines: List<TalkOutline>,
-    oradorId: Long?,
-    oradorNome: String,
-    presidenteId: Long?,
-    dirigenteId: Long?,
-    leitorId: Long?,
     members: List<Members>,
-    isReadOnly: Boolean,
+    selected: Boolean,
+    onSelect: () -> Unit,
     onTituloChanged: (String) -> Unit,
     onOradorChanged: (Long?, String) -> Unit,
     onPresidenteChanged: (Long?) -> Unit,
     onDirigenteChanged: (Long?) -> Unit,
     onLeitorChanged: (Long?) -> Unit,
 ) {
-    Column(
+    val alphaMod = if (item.isPast) 0.6f else 1f
+
+    Card(
         modifier = Modifier
-            .fillMaxSize()
-            .widthIn(max = EditorMaxWidth),
-    ) {
-        Text(
-            text = LocalT.current.longDateWithYear(item.date),
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        Spacer(modifier = Modifier.height(2.dp))
-        Text(
-            text = tr("Reunião pública às {0}", item.time),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Card(
-            modifier = Modifier.fillMaxWidth().widthIn(max = EditorMaxWidth),
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface,
+            .fillMaxWidth()
+            .widthIn(max = CardMaxWidth)
+            // Sem realce: o cartao inteiro e clicavel e o hover padrao o deixaria cinza.
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onSelect,
             ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        ) {
-            Column(modifier = Modifier.padding(24.dp)) {
-                if (isReadOnly) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
-                    ) {
-                        Badge(text = tr("Realizada"))
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (selected) 3.dp else 1.dp),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = item.dateLabelShort,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = alphaMod),
+                    )
+                    Text(
+                        text = tr("Reunião pública às {0}", item.time),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alphaMod),
+                    )
                 }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (item.isPast) Badge(text = tr("Realizada"))
+                    FilledCountBadge(filled = item.filledCount)
+                }
+            }
 
-                TalkTitlePicker(
-                    value = tituloDiscurso,
-                    outlines = talkOutlines,
-                    enabled = !isReadOnly,
-                    onValueChanged = onTituloChanged,
-                )
-                Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-                MemberPicker(
-                    label = tr("Orador"),
-                    members = members,
-                    selectedId = oradorId,
-                    selectedNome = oradorNome,
-                    enabled = !isReadOnly,
-                    onSelected = { id, nome -> onOradorChanged(id, nome) },
-                    allowFreeText = true,
-                )
-                Spacer(modifier = Modifier.height(12.dp))
+            TalkTitlePicker(
+                value = item.tituloDiscurso,
+                outlines = talkOutlines,
+                enabled = !item.isPast,
+                onValueChanged = onTituloChanged,
+            )
 
-                MemberPicker(
-                    label = tr("Presidente"),
-                    members = members,
-                    selectedId = presidenteId,
-                    enabled = !isReadOnly,
-                    onSelected = { id, _ -> onPresidenteChanged(id) },
-                )
-                Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
-                MemberPicker(
-                    label = tr("Dirigente do estudo"),
-                    members = members,
-                    selectedId = dirigenteId,
-                    enabled = !isReadOnly,
-                    onSelected = { id, _ -> onDirigenteChanged(id) },
+            // Duas colunas quando ha largura; uma so quando nao ha.
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                val porLinha = if (maxWidth >= MIN_WIDTH_FOR_TWO_COLUMNS) 2 else 1
+                val campos = listOf<@Composable () -> Unit>(
+                    {
+                        MemberPicker(
+                            label = tr("Orador"),
+                            members = members,
+                            selectedId = item.oradorId,
+                            selectedNome = item.oradorNome,
+                            enabled = !item.isPast,
+                            onSelected = { id, nome -> onOradorChanged(id, nome) },
+                            allowFreeText = true,
+                        )
+                    },
+                    {
+                        MemberPicker(
+                            label = tr("Presidente"),
+                            members = members,
+                            selectedId = item.presidenteId,
+                            enabled = !item.isPast,
+                            onSelected = { id, _ -> onPresidenteChanged(id) },
+                        )
+                    },
+                    {
+                        MemberPicker(
+                            label = tr("Dirigente do estudo"),
+                            members = members,
+                            selectedId = item.dirigenteId,
+                            enabled = !item.isPast,
+                            onSelected = { id, _ -> onDirigenteChanged(id) },
+                        )
+                    },
+                    {
+                        MemberPicker(
+                            label = tr("Leitor"),
+                            members = members,
+                            selectedId = item.leitorId,
+                            enabled = !item.isPast,
+                            onSelected = { id, _ -> onLeitorChanged(id) },
+                        )
+                    },
                 )
-                Spacer(modifier = Modifier.height(12.dp))
-
-                MemberPicker(
-                    label = tr("Leitor"),
-                    members = members,
-                    selectedId = leitorId,
-                    enabled = !isReadOnly,
-                    onSelected = { id, _ -> onLeitorChanged(id) },
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    campos.chunked(porLinha).forEach { linha ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            linha.forEach { campo -> Box(modifier = Modifier.weight(1f)) { campo() } }
+                            repeat(porLinha - linha.size) { Spacer(modifier = Modifier.weight(1f)) }
+                        }
+                    }
+                }
             }
         }
+    }
+}
+
+/** Quantos dos cinco campos ja estao preenchidos. */
+@Composable
+private fun FilledCountBadge(filled: Int) {
+    val completo = filled == 5
+    Box(
+        modifier = Modifier
+            .background(
+                if (completo) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                else MaterialTheme.colorScheme.surfaceVariant,
+                RoundedCornerShape(6.dp),
+            )
+            .padding(horizontal = 8.dp, vertical = 2.dp),
+    ) {
+        Text(
+            text = "$filled/5",
+            style = MaterialTheme.typography.labelMedium,
+            color = if (completo) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

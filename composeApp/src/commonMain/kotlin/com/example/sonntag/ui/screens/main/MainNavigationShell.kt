@@ -35,6 +35,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -54,6 +56,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -69,11 +72,14 @@ import org.koin.compose.koinInject
 
 private const val DEFAULT_TITLE = "Programação do Salão"
 private val DrawerWidth = 240.dp
+private val RailWidth = 96.dp
 
 data class NavItem(
     val id: String,
     val label: String,
     val icon: ImageVector,
+    /** Usado no rail, onde nao cabe o rotulo inteiro. */
+    val shortLabel: String = label,
     val content: @Composable () -> Unit,
 )
 
@@ -104,7 +110,9 @@ private fun navEntries(onNavigate: (String) -> Unit): List<NavEntry> = listOf(
         NavItem("membros", "Membros", Icons.Outlined.People) { MembersScreen().Content() },
     ),
     NavEntry.Single(
-        NavItem("av", "Áudio/vídeo e acomodadores", Icons.Outlined.Headphones) { AvAssignmentsScreen().Content() },
+        NavItem("av", "Áudio/vídeo e acomodadores", Icons.Outlined.Headphones, "Áudio/vídeo") {
+            AvAssignmentsScreen().Content()
+        },
     ),
     NavEntry.Single(
         NavItem("limpeza", "Limpeza", Icons.Outlined.CleaningServices) { CleaningScreen().Content() },
@@ -156,6 +164,17 @@ fun MainNavigationShell() {
                     congregationName = congregationName,
                     congregationSubtitle = congregationSubtitle,
                 )
+            } else if (windowSize == WindowSize.MEDIUM) {
+                // Tablet em pe: a gaveta de 240dp comeria um terco da tela. Vira um
+                // rail de icones, devolvendo a largura para o conteudo.
+                Row(modifier = Modifier.fillMaxSize()) {
+                    AppNavigationRail(
+                        items = allItems,
+                        selectedId = selected.id,
+                        onItemSelected = { selectedId = it },
+                    )
+                    ContentArea { selected.content() }
+                }
             } else {
                 Row(modifier = Modifier.fillMaxSize()) {
                     AppNavigationDrawer(
@@ -165,9 +184,7 @@ fun MainNavigationShell() {
                         congregationName = congregationName,
                         congregationSubtitle = congregationSubtitle,
                     )
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        selected.content()
-                    }
+                    ContentArea { selected.content() }
                 }
             }
         }
@@ -213,9 +230,54 @@ private fun CompactShell(
                     }
                 },
             )
-            Box(modifier = Modifier.fillMaxSize()) {
-                selected.content()
-            }
+            ContentArea { selected.content() }
+        }
+    }
+}
+
+/** Rail de icones: o menu inteiro em ~80dp, sem os agrupamentos da gaveta. */
+@Composable
+private fun AppNavigationRail(
+    items: List<NavItem>,
+    selectedId: String,
+    onItemSelected: (String) -> Unit,
+) {
+    // 80dp (o padrao) corta rotulos como "Fim de semana"; com 96 eles quebram em
+    // duas linhas e ainda sobra bem mais espaco que a gaveta de 240dp.
+    NavigationRail(
+        modifier = Modifier.width(RailWidth),
+        containerColor = MaterialTheme.colorScheme.surface,
+    ) {
+        Spacer(modifier = Modifier.height(8.dp))
+        items.forEach { item ->
+            NavigationRailItem(
+                selected = item.id == selectedId,
+                onClick = { onItemSelected(item.id) },
+                icon = { Icon(item.icon, contentDescription = null) },
+                label = {
+                    Text(
+                        text = tr(item.shortLabel),
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                },
+            )
+        }
+    }
+}
+
+/**
+ * Area util das telas. Mede de novo porque a gaveta permanente ja consumiu 240dp:
+ * decidir o layout pela largura da janela faria a tela se achar mais larga do que e.
+ */
+@Composable
+private fun ContentArea(content: @Composable () -> Unit) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        CompositionLocalProvider(LocalWindowSize provides WindowSize.fromWidth(maxWidth)) {
+            content()
         }
     }
 }

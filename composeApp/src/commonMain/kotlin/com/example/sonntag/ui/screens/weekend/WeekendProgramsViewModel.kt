@@ -32,6 +32,11 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.plus
 import kotlinx.datetime.toLocalDateTime
 
+/**
+ * Uma reuniao com a sua programacao. Os dados ficam no item, e nao numa selecao
+ * unica, porque a tela mostra todas as reunioes do mes editaveis ao mesmo tempo —
+ * o mesmo modelo da tela de audio/video.
+ */
 data class WeekendMeetingItem(
     val id: Long,
     val date: LocalDate,
@@ -40,9 +45,26 @@ data class WeekendMeetingItem(
     val month: Int,
     val dateLabelShort: String,
     val dateLabelLong: String,
-    val titleSummary: String?,
     val isPast: Boolean,
-)
+    val tituloDiscurso: String = "",
+    val oradorId: Long? = null,
+    val oradorNome: String = "",
+    val presidenteId: Long? = null,
+    val dirigenteId: Long? = null,
+    val leitorId: Long? = null,
+) {
+    val titleSummary: String? get() = tituloDiscurso.takeIf { it.isNotBlank() }
+
+    /** Quantos dos cinco campos ja estao preenchidos. */
+    val filledCount: Int
+        get() = listOf(
+            tituloDiscurso.isNotBlank(),
+            oradorId != null || oradorNome.isNotBlank(),
+            presidenteId != null,
+            dirigenteId != null,
+            leitorId != null,
+        ).count { it }
+}
 
 data class WeekendProgramsUiState(
     val isLoading: Boolean = true,
@@ -52,13 +74,6 @@ data class WeekendProgramsUiState(
     val allMeetings: List<WeekendMeetingItem> = emptyList(),
     val selectedMeetingId: Long? = null,
     val members: List<Members> = emptyList(),
-    val tituloDiscurso: String = "",
-    val oradorId: Long? = null,
-    val oradorNome: String = "",
-    val presidenteId: Long? = null,
-    val dirigenteId: Long? = null,
-    val leitorId: Long? = null,
-    val isReadOnly: Boolean = false,
     val talkOutlines: List<TalkOutline> = emptyList(),
     val importInProgress: Boolean = false,
     val importResult: String? = null,
@@ -78,8 +93,8 @@ class WeekendProgramsViewModel(
 
     private val _uiState = MutableStateFlow(WeekendProgramsUiState())
     val uiState: StateFlow<WeekendProgramsUiState> = _uiState.asStateFlow()
-    private var autosaveJob: Job? = null
-    private var suppressAutosave = false
+    /** Uma gravacao pendente por reuniao: os cartoes sao editaveis ao mesmo tempo. */
+    private val autosaveJobs = mutableMapOf<Long, Job>()
 
     init {
         val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
@@ -95,17 +110,14 @@ class WeekendProgramsViewModel(
     private fun observeMembers() {
         viewModelScope.launch(Dispatchers.IO) {
             membersRepository.getAll().collect { members ->
-                val current = _uiState.value
-                val updatedOradorNome = if (current.oradorId != null) {
-                    members.firstOrNull { it.id == current.oradorId }
-                        ?.let { "${it.nome} ${it.sobrenome}" }
-                        ?: current.oradorNome
-                } else {
-                    current.oradorNome
-                }
-                _uiState.value = current.copy(
+                val porId = members.associateBy { it.id }
+                _uiState.value = _uiState.value.copy(
                     members = members,
-                    oradorNome = updatedOradorNome,
+                    // Renomear um membro precisa refletir no orador ja escolhido.
+                    allMeetings = _uiState.value.allMeetings.map { item ->
+                        val nome = item.oradorId?.let { porId[it] }?.let { "${it.nome} ${it.sobrenome}" }
+                        if (nome != null) item.copy(oradorNome = nome) else item
+                    },
                 )
             }
         }
@@ -117,10 +129,10 @@ class WeekendProgramsViewModel(
             val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
             val meetings = meetingsRepository.getByTypeOnce("WEEKEND").sortedBy { it.data_ }
 
+            val membrosPorId = _uiState.value.members.associateBy { it.id }
             val items = meetings.map { m ->
                 val date = LocalDate.parse(m.data_)
-                val titulo = weekendProgramsRepository.getByMeetingIdOnce(m.id)?.titulo_discurso
-                    ?.takeIf { it.isNotBlank() }
+                val p = weekendProgramsRepository.getByMeetingIdOnce(m.id)
                 WeekendMeetingItem(
                     id = m.id,
                     date = date,
@@ -129,8 +141,15 @@ class WeekendProgramsViewModel(
                     month = date.monthNumber,
                     dateLabelShort = localeController.translator.longDate(date),
                     dateLabelLong = localeController.translator.longDateWithYear(date),
-                    titleSummary = titulo,
                     isPast = date < today,
+                    tituloDiscurso = p?.titulo_discurso.orEmpty(),
+                    oradorId = p?.orador_id,
+                    oradorNome = p?.orador_id?.let { membrosPorId[it] }
+                        ?.let { "${it.nome} ${it.sobrenome}" }
+                        ?: p?.orador_nome.orEmpty(),
+                    presidenteId = p?.presidente_id,
+                    dirigenteId = p?.dirigente_id,
+                    leitorId = p?.leitor_id,
                 )
             }
 
@@ -146,7 +165,6 @@ class WeekendProgramsViewModel(
                 allMeetings = items,
                 selectedMeetingId = initialSelected,
             )
-            initialSelected?.let { selectMeeting(it) }
             loadTalkOutlines()
         }
     }
@@ -195,31 +213,9 @@ class WeekendProgramsViewModel(
         }
     }
 
+    /** Marca a reuniao usada pela exportacao "Esta reuniao". */
     fun selectMeeting(meetingId: Long) {
-        val meeting = _uiState.value.allMeetings.firstOrNull { it.id == meetingId } ?: return
         _uiState.value = _uiState.value.copy(selectedMeetingId = meetingId)
-        viewModelScope.launch(Dispatchers.IO) {
-            suppressAutosave = true
-            val existing = weekendProgramsRepository.getByMeetingIdOnce(meeting.id)
-            val resolvedOradorNome = when {
-                existing?.orador_nome?.isNotBlank() == true -> existing.orador_nome.orEmpty()
-                existing?.orador_id != null -> {
-                    val m = _uiState.value.members.firstOrNull { it.id == existing.orador_id }
-                    if (m != null) "${m.nome} ${m.sobrenome}" else ""
-                }
-                else -> ""
-            }
-            _uiState.value = _uiState.value.copy(
-                tituloDiscurso = existing?.titulo_discurso.orEmpty(),
-                oradorId = existing?.orador_id,
-                oradorNome = resolvedOradorNome,
-                presidenteId = existing?.presidente_id,
-                dirigenteId = existing?.dirigente_id,
-                leitorId = existing?.leitor_id,
-                isReadOnly = meeting.isPast,
-            )
-            suppressAutosave = false
-        }
     }
 
     fun showPreviousMonth() {
@@ -239,61 +235,45 @@ class WeekendProgramsViewModel(
         _uiState.value = _uiState.value.copy(visibleYear = today.year, visibleMonth = today.monthNumber)
     }
 
-    fun onTituloChanged(value: String) {
-        val updated = _uiState.value.copy(
-            tituloDiscurso = value,
-            allMeetings = updateMeetingTitle(_uiState.value.allMeetings, _uiState.value.selectedMeetingId, value),
+    fun onTituloChanged(meetingId: Long, value: String) =
+        edit(meetingId) { it.copy(tituloDiscurso = value) }
+
+    fun onOradorChanged(meetingId: Long, id: Long?, nome: String) =
+        edit(meetingId) { it.copy(oradorId = id, oradorNome = nome) }
+
+    fun onPresidenteChanged(meetingId: Long, value: Long?) =
+        edit(meetingId) { it.copy(presidenteId = value) }
+
+    fun onDirigenteChanged(meetingId: Long, value: Long?) =
+        edit(meetingId) { it.copy(dirigenteId = value) }
+
+    fun onLeitorChanged(meetingId: Long, value: Long?) =
+        edit(meetingId) { it.copy(leitorId = value) }
+
+    /** Altera uma reuniao da lista e agenda a gravacao so dela. */
+    private fun edit(meetingId: Long, bloco: (WeekendMeetingItem) -> WeekendMeetingItem) {
+        val atual = _uiState.value.allMeetings.firstOrNull { it.id == meetingId } ?: return
+        if (atual.isPast) return
+        _uiState.value = _uiState.value.copy(
+            selectedMeetingId = meetingId,
+            allMeetings = _uiState.value.allMeetings.map { if (it.id == meetingId) bloco(it) else it },
         )
-        _uiState.value = updated
-        scheduleAutosave()
+        scheduleAutosave(meetingId)
     }
 
-    private fun updateMeetingTitle(
-        list: List<WeekendMeetingItem>,
-        selectedId: Long?,
-        newTitle: String,
-    ): List<WeekendMeetingItem> {
-        if (selectedId == null) return list
-        return list.map {
-            if (it.id == selectedId) it.copy(titleSummary = newTitle.takeIf { t -> t.isNotBlank() }) else it
-        }
-    }
-
-    fun onOradorChanged(id: Long?, nome: String) {
-        _uiState.value = _uiState.value.copy(oradorId = id, oradorNome = nome)
-        scheduleAutosave()
-    }
-
-    fun onPresidenteChanged(value: Long?) {
-        _uiState.value = _uiState.value.copy(presidenteId = value)
-        scheduleAutosave()
-    }
-
-    fun onDirigenteChanged(value: Long?) {
-        _uiState.value = _uiState.value.copy(dirigenteId = value)
-        scheduleAutosave()
-    }
-
-    fun onLeitorChanged(value: Long?) {
-        _uiState.value = _uiState.value.copy(leitorId = value)
-        scheduleAutosave()
-    }
-
-    private fun scheduleAutosave() {
-        if (suppressAutosave || _uiState.value.isReadOnly) return
-        val meetingId = _uiState.value.selectedMeetingId ?: return
-        autosaveJob?.cancel()
-        autosaveJob = viewModelScope.launch(Dispatchers.IO) {
+    private fun scheduleAutosave(meetingId: Long) {
+        autosaveJobs.remove(meetingId)?.cancel()
+        autosaveJobs[meetingId] = viewModelScope.launch(Dispatchers.IO) {
             delay(500)
-            val s = _uiState.value
+            val item = _uiState.value.allMeetings.firstOrNull { it.id == meetingId } ?: return@launch
             weekendProgramsRepository.upsert(
                 meetingId = meetingId,
-                tituloDiscurso = s.tituloDiscurso.ifBlank { null },
-                oradorId = s.oradorId,
-                oradorNome = s.oradorNome.ifBlank { null },
-                presidenteId = s.presidenteId,
-                dirigenteId = s.dirigenteId,
-                leitorId = s.leitorId,
+                tituloDiscurso = item.tituloDiscurso.ifBlank { null },
+                oradorId = item.oradorId,
+                oradorNome = item.oradorNome.ifBlank { null },
+                presidenteId = item.presidenteId,
+                dirigenteId = item.dirigenteId,
+                leitorId = item.leitorId,
             )
         }
     }

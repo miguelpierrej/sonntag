@@ -8,6 +8,32 @@ versionamento segue o [Semantic Versioning](https://semver.org/lang/pt-BR/).
 O workflow de release lê a seção da versão que está sendo fechada e usa o conteúdo
 como corpo do GitHub Release — o cabeçalho precisa ser `## [x.y.z] - AAAA-MM-DD`.
 
+## [1.0.3] - UNRELEASED
+
+### Corrigido
+- Importar dados em outro aparelho duplicava a agenda: cada instalação gera as próprias
+  reuniões a partir dos dias configurados, com identificadores diferentes, e a fusão as
+  tratava como registros distintos — aparecia uma semana com programa e outra vazia.
+  Agora reuniões, dias de reunião, grupos e semanas de limpeza são reconhecidos por
+  aquilo que os define (data, horário e tipo, por exemplo). A atualização também junta
+  as duplicatas que já tenham sido criadas, preservando os programas.
+- No tablet em pé o menu lateral fixo ocupava um terço da tela e comprimia o conteúdo.
+  Nessa largura ele passa a ser uma faixa de ícones.
+- As telas de programação e de áudio/vídeo decidiam o espaço pela largura da janela e
+  não pela que sobrava depois do menu, ficando espremidas no tablet e no celular:
+  os nomes apareciam cortados e o formulário sem espaço. Agora medem o espaço real e
+  reorganizam as colunas conforme a largura disponível.
+
+### Alterado
+- As telas de programação de fim de semana e de meio de semana passaram a usar o mesmo
+  formato da tela de áudio/vídeo: uma reunião por cartão, com a programação dentro e
+  edição direta, sem precisar escolher a reunião numa lista à parte. Os campos se
+  reorganizam conforme a largura. Como o formulário do S-140 é longo, os cartões de meio
+  de semana abrem ao toque, mostrando recolhidos a leitura da semana e o presidente.
+  A próxima reunião do mês já vem aberta.
+- Passar o mouse sobre um cartão de reunião não o escurece mais: a área clicável ocupa
+  o cartão inteiro e o realce padrão pintava uma faixa cinza sobre ele.
+
 ## [1.0.2] - 2026-08-04
 
 ### Adicionado

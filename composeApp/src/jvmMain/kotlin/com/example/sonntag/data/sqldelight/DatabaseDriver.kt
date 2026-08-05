@@ -45,6 +45,73 @@ private fun addColumnIfMissing(connection: Connection, table: String, column: St
     }
 }
 
+/**
+ * Junta reunioes que descrevem o mesmo encontro (data, hora, tipo). Vence a que tem
+ * programa; as demais cedem seus filhos e somem.
+ */
+private fun mergeDuplicateMeetings(connection: Connection) {
+    val grupos = mutableListOf<Triple<String, String, String>>()
+    connection.createStatement().use { st ->
+        st.executeQuery(
+            """
+            SELECT data, hora, tipo FROM meetings
+            GROUP BY data, hora, tipo HAVING COUNT(*) > 1
+            """.trimIndent()
+        ).use { rs ->
+            while (rs.next()) grupos += Triple(rs.getString(1), rs.getString(2), rs.getString(3))
+        }
+    }
+    if (grupos.isEmpty()) return
+
+    val filhas = listOf("weekend_programs", "midweek_programs", "av_assignments")
+
+    grupos.forEach { (data, hora, tipo) ->
+        val ids = mutableListOf<Long>()
+        connection.prepareStatement(
+            "SELECT id FROM meetings WHERE data = ? AND hora = ? AND tipo = ? ORDER BY id"
+        ).use { st ->
+            st.setString(1, data); st.setString(2, hora); st.setString(3, tipo)
+            st.executeQuery().use { rs -> while (rs.next()) ids += rs.getLong(1) }
+        }
+        if (ids.size < 2) return@forEach
+
+        fun quantosFilhos(id: Long): Int = filhas.sumOf { tabela ->
+            connection.prepareStatement("SELECT COUNT(*) FROM $tabela WHERE meeting_id = ?").use { st ->
+                st.setLong(1, id)
+                st.executeQuery().use { rs -> if (rs.next()) rs.getInt(1) else 0 }
+            }
+        }
+
+        // A que carrega programa fica; empate resolve pelo menor id.
+        val vencedora = ids.maxByOrNull { quantosFilhos(it) * 1_000_000L - it } ?: return@forEach
+
+        (ids - vencedora).forEach { perdedora ->
+            filhas.forEach { tabela ->
+                val vencedoraJaTem = connection.prepareStatement(
+                    "SELECT COUNT(*) FROM $tabela WHERE meeting_id = ?"
+                ).use { st ->
+                    st.setLong(1, vencedora)
+                    st.executeQuery().use { rs -> rs.next() && rs.getInt(1) > 0 }
+                }
+                val sql = if (vencedoraJaTem) {
+                    // UNIQUE(meeting_id) impede duas: a da perdedora e a vazia.
+                    "DELETE FROM $tabela WHERE meeting_id = ?"
+                } else {
+                    "UPDATE $tabela SET meeting_id = $vencedora WHERE meeting_id = ?"
+                }
+                connection.prepareStatement(sql).use { st ->
+                    st.setLong(1, perdedora)
+                    st.executeUpdate()
+                }
+            }
+            connection.prepareStatement("DELETE FROM meetings WHERE id = ?").use { st ->
+                st.setLong(1, perdedora)
+                st.executeUpdate()
+            }
+        }
+    }
+}
+
 /** Id desta instalacao. Criado uma vez e reusado por SyncStamp. */
 private fun ensureDeviceId(connection: Connection): String {
     connection.prepareStatement("SELECT valor FROM app_prefs WHERE chave = ?").use { stmt ->
@@ -249,6 +316,11 @@ actual fun createDatabaseDriver(): SqlDriver {
                     )
                 }
             }
+
+            // v10: funde reunioes duplicadas. Antes da chave natural, importar um
+            // pacote criava uma segunda reuniao para a mesma data (uma com programa,
+            // outra vazia), porque cada instalacao gerava a sua com uuid proprio.
+            mergeDuplicateMeetings(connection)
 
             // v4: add 4th ministry slot to midweek_programs (apostilas com 4 partes)
             listOf("min4_titulo TEXT", "min4_minutos TEXT", "min4_estudante_id INTEGER", "min4_ajudante_id INTEGER")

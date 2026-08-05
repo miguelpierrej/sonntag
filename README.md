@@ -24,6 +24,10 @@ se puede exportar en PDF o PNG para imprimir o compartir.
 - **Importaciones** — la guía de actividades (`mwb`, en PDF) llena el programa de entre
   semana; el **S-34** (`.jwpub`) trae los 194 bosquejos de discursos públicos a una lista
   de selección en el título del discurso.
+- **Compartir datos** — en Configuración › Datos se exportan los bloques elegidos a un
+  archivo `.sonntag` cifrado (con contraseña opcional) que otra instalación importa.
+  Antes de guardar nada se muestra un resumen, y usted decide registro a registro qué
+  hacer cuando los dos lados cambiaron.
 - **Sin conexión** — no requiere internet ni cuenta; los datos nunca salen de la máquina.
 
 ## Instalación
@@ -49,6 +53,8 @@ abra el APK en el teléfono y permita la instalación de orígenes desconocidos.
 3. Registre a los **publicadores** y, en Configuración, los **grupos de limpieza**.
 4. Opcional: use **Importar S-34** en la pantalla de fin de semana para tener la lista de
    bosquejos, e **Importar guía** en la de entre semana para llenar las semanas del mes.
+5. Para trabajar en más de un aparato, exporte los datos en **Configuración › Datos** e
+   impórtelos en el otro. Cada instalación guarda los suyos; el archivo es el puente.
 
 ## Idioma
 

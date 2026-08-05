@@ -38,6 +38,10 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.plus
 import kotlinx.datetime.toLocalDateTime
 
+/**
+ * Uma reuniao com o seu formulario. Como na tela de audio/video, os dados ficam no
+ * item: todos os cartoes da lista sao editaveis, sem passo de selecao.
+ */
 data class MidweekMeetingItem(
     val id: Long,
     val date: LocalDate,
@@ -46,9 +50,14 @@ data class MidweekMeetingItem(
     val month: Int,
     val dateLabelShort: String,
     val dateLabelLong: String,
-    val summary: String?,
     val isPast: Boolean,
-)
+    val form: MidweekProgramInput = MidweekProgramInput(),
+) {
+    val summary: String? get() = form.leituraSemanal?.takeIf { it.isNotBlank() }
+
+    /** Resumo mostrado com o cartao recolhido. */
+    val presidenteId: Long? get() = form.presidenteId
+}
 
 data class MidweekProgramsUiState(
     val isLoading: Boolean = true,
@@ -58,8 +67,7 @@ data class MidweekProgramsUiState(
     val allMeetings: List<MidweekMeetingItem> = emptyList(),
     val selectedMeetingId: Long? = null,
     val members: List<Members> = emptyList(),
-    val form: MidweekProgramInput = MidweekProgramInput(),
-    val isReadOnly: Boolean = false,
+
     val importInProgress: Boolean = false,
     val importResult: String? = null,
 )
@@ -77,8 +85,8 @@ class MidweekProgramsViewModel(
 
     private val _uiState = MutableStateFlow(MidweekProgramsUiState())
     val uiState: StateFlow<MidweekProgramsUiState> = _uiState.asStateFlow()
-    private var autosaveJob: Job? = null
-    private var suppressAutosave = false
+    /** Uma gravacao pendente por reuniao: os cartoes sao editaveis ao mesmo tempo. */
+    private val autosaveJobs = mutableMapOf<Long, Job>()
 
     init {
         val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
@@ -111,8 +119,7 @@ class MidweekProgramsViewModel(
 
             val items = meetings.map { m ->
                 val date = LocalDate.parse(m.data_)
-                val summary = midweekProgramsRepository.getByMeetingIdOnce(m.id)?.leitura_semanal
-                    ?.takeIf { it.isNotBlank() }
+                val programa = midweekProgramsRepository.getByMeetingIdOnce(m.id)
                 MidweekMeetingItem(
                     id = m.id,
                     date = date,
@@ -121,8 +128,8 @@ class MidweekProgramsViewModel(
                     month = date.monthNumber,
                     dateLabelShort = localeController.translator.longDate(date),
                     dateLabelLong = localeController.translator.longDateWithYear(date),
-                    summary = summary,
                     isPast = date < today,
+                    form = programa?.toInput() ?: MidweekProgramInput(),
                 )
             }
 
@@ -138,7 +145,6 @@ class MidweekProgramsViewModel(
                 allMeetings = items,
                 selectedMeetingId = initialSelected,
             )
-            initialSelected?.let { selectMeeting(it) }
         }
     }
 
@@ -378,18 +384,9 @@ class MidweekProgramsViewModel(
         )
     }
 
+    /** Marca a reuniao usada pelas exportacoes de uma reuniao so. */
     fun selectMeeting(meetingId: Long) {
-        val meeting = _uiState.value.allMeetings.firstOrNull { it.id == meetingId } ?: return
         _uiState.value = _uiState.value.copy(selectedMeetingId = meetingId)
-        viewModelScope.launch(Dispatchers.IO) {
-            suppressAutosave = true
-            val existing = midweekProgramsRepository.getByMeetingIdOnce(meeting.id)
-            _uiState.value = _uiState.value.copy(
-                form = existing?.toInput() ?: MidweekProgramInput(),
-                isReadOnly = meeting.isPast,
-            )
-            suppressAutosave = false
-        }
     }
 
     fun showPreviousMonth() {
@@ -409,35 +406,25 @@ class MidweekProgramsViewModel(
         _uiState.value = _uiState.value.copy(visibleYear = today.year, visibleMonth = today.monthNumber)
     }
 
-    /** Aplica uma alteracao no formulario e agenda o salvamento automatico. */
-    fun updateForm(transform: (MidweekProgramInput) -> MidweekProgramInput) {
-        if (_uiState.value.isReadOnly) return
-        val newForm = transform(_uiState.value.form)
+    /** Aplica uma alteracao no formulario de uma reuniao e agenda a gravacao dela. */
+    fun updateForm(meetingId: Long, transform: (MidweekProgramInput) -> MidweekProgramInput) {
+        val atual = _uiState.value.allMeetings.firstOrNull { it.id == meetingId } ?: return
+        if (atual.isPast) return
         _uiState.value = _uiState.value.copy(
-            form = newForm,
-            allMeetings = updateSummary(_uiState.value.allMeetings, _uiState.value.selectedMeetingId, newForm.leituraSemanal),
+            selectedMeetingId = meetingId,
+            allMeetings = _uiState.value.allMeetings.map {
+                if (it.id == meetingId) it.copy(form = transform(it.form)) else it
+            },
         )
-        scheduleAutosave()
+        scheduleAutosave(meetingId)
     }
 
-    private fun updateSummary(
-        list: List<MidweekMeetingItem>,
-        selectedId: Long?,
-        leitura: String?,
-    ): List<MidweekMeetingItem> {
-        if (selectedId == null) return list
-        return list.map {
-            if (it.id == selectedId) it.copy(summary = leitura?.takeIf { t -> t.isNotBlank() }) else it
-        }
-    }
-
-    private fun scheduleAutosave() {
-        if (suppressAutosave || _uiState.value.isReadOnly) return
-        val meetingId = _uiState.value.selectedMeetingId ?: return
-        autosaveJob?.cancel()
-        autosaveJob = viewModelScope.launch(Dispatchers.IO) {
+    private fun scheduleAutosave(meetingId: Long) {
+        autosaveJobs.remove(meetingId)?.cancel()
+        autosaveJobs[meetingId] = viewModelScope.launch(Dispatchers.IO) {
             delay(500)
-            midweekProgramsRepository.upsert(meetingId, _uiState.value.form.normalized())
+            val item = _uiState.value.allMeetings.firstOrNull { it.id == meetingId } ?: return@launch
+            midweekProgramsRepository.upsert(meetingId, item.form.normalized())
         }
     }
 

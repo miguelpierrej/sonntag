@@ -24,6 +24,10 @@ pode ser exportada em PDF ou PNG para imprimir ou compartilhar.
 - **Importações** — a apostila (`mwb`, em PDF) preenche o programa de meio de semana; o
   **S-34** (`.jwpub`) traz os 194 esboços de discursos públicos para uma lista de seleção
   no título do discurso.
+- **Compartilhar dados** — em Configurações › Dados você exporta os blocos escolhidos
+  para um arquivo `.sonntag` cifrado (com senha opcional) que outra instalação importa.
+  Nada é gravado antes de você conferir o resumo, e você decide registro a registro o
+  que fazer quando os dois lados mudaram.
 - **Offline** — não exige internet nem conta; os dados nunca saem da máquina.
 
 ## Instalação
@@ -48,6 +52,8 @@ no aparelho e permita a instalação de fontes desconhecidas.
 3. Cadastre os **membros** e, em Configurações, os **grupos de limpeza**.
 4. Opcional: use **Importar S-34** na tela de fim de semana para ter a lista de esboços, e
    **Importar apostila** na de meio de semana para preencher as semanas do mês.
+5. Para trabalhar em mais de um aparelho, exporte os dados em **Configurações › Dados** e
+   importe no outro. Cada instalação guarda os seus; o arquivo é a ponte.
 
 ## Idioma
 

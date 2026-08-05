@@ -179,6 +179,7 @@ object EsTranslations {
 
         // Áudio/vídeo e acomodadores
         "Áudio/vídeo e acomodadores" to "Audio/video y acomodadores",
+        "Áudio/vídeo" to "Audio/video",
         "Designações técnicas de cada reunião" to "Asignaciones técnicas de cada reunión",
         "Áudio e vídeo" to "Audio y video",
         "Áudio" to "Audio",
