@@ -151,6 +151,12 @@ compose.desktop {
             packageName = appName
             packageVersion = appVersion
 
+            // O runtime empacotado e enxugado pelo jlink, e sem estes o app fecha na
+            // abertura — no Windows com um lacônico "Failed to launch JVM". O banco
+            // precisa de java.sql, e o HikariCP de java.naming e java.management.
+            // Conferir com: ./gradlew :composeApp:suggestRuntimeModules
+            modules("java.instrument", "java.management", "java.naming", "java.sql", "jdk.unsupported")
+
             windows {
                 iconFile.set(project.file("icons/app-icon.ico"))
                 // Atalho no menu Iniciar (dentro do grupo) e na area de trabalho.

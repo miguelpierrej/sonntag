@@ -8,6 +8,24 @@ versionamento segue o [Semantic Versioning](https://semver.org/lang/pt-BR/).
 O workflow de release lê a seção da versão que está sendo fechada e usa o conteúdo
 como corpo do GitHub Release — o cabeçalho precisa ser `## [x.y.z] - AAAA-MM-DD`.
 
+
+## [1.0.5] - UNRELEASED
+
+### Corrigido
+- O app instalado não abria: no Windows o instalador saía com "Failed to launch JVM" e
+  no Linux o pacote fechava calado. O runtime embutido é enxugado pelo jlink e vinha sem
+  `java.sql`, `java.naming` e `java.management`, de que o banco e o pool de conexões
+  precisam — e abrir o banco é a primeira coisa que o app faz. Só rodando pelo Gradle
+  escapava, porque ali o JDK está inteiro.
+- Mudar o horário de uma reunião num aparelho criava uma agenda inteira em paralelo no
+  outro — uma semana preenchida e uma vazia, lado a lado. A hora fazia parte da chave
+  que identifica reunião e dia de reunião, e ela é justamente o que o usuário edita.
+  Agora reunião é identificada por data e tipo, e dia de reunião pelo dia da semana,
+  como o próprio app já fazia ao regenerar a agenda.
+- Ao abrir, o app funde as agendas duplicadas que ficaram desse problema: sobrevive a
+  reunião que carrega o programa, o horário passa a ser o da última alteração e as
+  reuniões passadas ficam com o horário em que de fato aconteceram.
+
 ## [1.0.4] - 2026-08-05
 
 ### Adicionado
@@ -19,14 +37,6 @@ como corpo do GitHub Release — o cabeçalho precisa ser `## [x.y.z] - AAAA-MM-
   Numa segunda troca com uma única alteração, o pacote cai de cerca de 26 KB para 1 KB.
 
 ### Corrigido
-- Mudar o horário de uma reunião num aparelho criava uma agenda inteira em paralelo no
-  outro — uma semana preenchida e uma vazia, lado a lado. A hora fazia parte da chave
-  que identifica reunião e dia de reunião, e ela é justamente o que o usuário edita.
-  Agora reunião é identificada por data e tipo, e dia de reunião pelo dia da semana,
-  como o próprio app já fazia ao regenerar a agenda.
-- Ao abrir, o app funde as agendas duplicadas que ficaram desse problema: sobrevive a
-  reunião que carrega o programa, o horário passa a ser o da última alteração e as
-  reuniões passadas ficam com o horário em que de fato aconteceram.
 - Importar um pacote de dados falhava com "NOT NULL constraint failed:
   weekend_programs.meeting_id" ao aplicar as mudanças. Os programas se referem à sua
   reunião, e quando a mesma reunião existia dos dois lados com identificadores
