@@ -75,9 +75,17 @@ object MwbParser {
         isCongregationStudy = { it.contains("estudio b") && it.contains("congrega") },
     )
 
-    private val inlinePartRegex = Regex("(\\d{1,2})\\.\\s+([^()]*?)\\s*\\((\\d+)\\s*mins?\\.?\\)")
-    private val lineStartPartRegex = Regex("^(\\d{1,2})\\.\\s+(.*)$")
+    // O espaco depois do numero da parte e opcional: quando o titulo comeca com aspas, o
+    // desenho da abertura fica tao perto do ponto que a extracao cola tudo ("7.“Te salva-
+    // ras..."). Em troca, o titulo nao pode comecar por digito -- senao uma referencia como
+    // "w25.10 21 párr. 15" viraria a parte 25.
+    private val inlinePartRegex =
+        Regex("(\\d{1,2})\\.\\s*([^()\\d][^()]*?)\\s*\\((\\d+)\\s*mins?\\.?\\)")
+    private val lineStartPartRegex = Regex("^(\\d{1,2})\\.\\s*([^\\d].*)$")
     private val minutesRegex = Regex("\\((\\d+)\\s*mins?\\.?\\)")
+
+    /** Inicio de outra parte numerada no meio da linha. */
+    private val outraParteRegex = Regex("\\d{1,2}\\.\\s*[^\\d\\s]")
 
     private data class Header(val diaInicio: Int, val mes: Int, val leituraSemanal: String?)
     private data class ParsedPart(val num: Int, val part: MwbPart, val line: Int)
@@ -93,7 +101,7 @@ object MwbParser {
         val weeks = mutableListOf<MwbWeek>()
         headerIndices.forEachIndexed { idx, start ->
             val end = headerIndices.getOrNull(idx + 1) ?: lines.size
-            val header = parseHeader(vocab, lines[start], lines.getOrNull(start + 1))
+            val header = parseHeader(vocab, lines[start], lines.subList(start + 1, minOf(start + 3, end)))
                 ?: return@forEachIndexed
             weeks += parseWeek(vocab, lines.subList(start + 1, end), year, header)
         }
@@ -117,12 +125,15 @@ object MwbParser {
     private fun collapse(line: String): String =
         line.replace("–", "-").replace("—", "-").replace(Regex("\\s+"), "").uppercase()
 
+    /** So as letras, em maiusculas: o resto e enfeite de titulo. */
+    private fun soLetras(line: String): String = collapse(line).filter { it.isLetter() }
+
     private fun isWeekHeader(vocab: Vocab, line: String): Boolean {
         val m = headerRegex(vocab).find(collapse(line)) ?: return false
         return m.range.first <= 4 // tolera um numero de pagina prefixado
     }
 
-    private fun parseHeader(vocab: Vocab, line: String, nextLine: String?): Header? {
+    private fun parseHeader(vocab: Vocab, line: String, seguintes: List<String>): Header? {
         val m = headerRegex(vocab).find(collapse(line)) ?: return null
         var dia = m.groupValues[1].toIntOrNull() ?: return null
         val fim = m.groupValues[2].toIntOrNull()
@@ -132,9 +143,10 @@ object MwbParser {
         val monthOnOriginal = Regex("DE\\s+(${vocab.months.keys.joinToString("|")})")
         val lastMonth = monthOnOriginal.findAll(line.uppercase()).lastOrNull()
         val leitura = lastMonth?.let { readingFromTail(line.substring(it.range.last + 1)) }
-        // A leitura pode cair na linha seguinte ("16 -22 DE NOVEMBRO" / "LAMENTACOES 1-2").
+        // A leitura pode cair numa das linhas seguintes ("16 -22 DE NOVEMBRO" /
+        // "LAMENTACOES 1-2"), as vezes com um acento solto no meio do caminho.
         val completa = leitura?.takeIf { it.any(Char::isLetter) }
-            ?: nextLine?.takeIf { isReadingLine(vocab, it) }?.let { readingFromTail(it) }
+            ?: seguintes.firstOrNull { isReadingLine(vocab, it) }?.let { readingFromTail(it) }
         return Header(dia, mes, completa)
     }
 
@@ -169,12 +181,11 @@ object MwbParser {
         val songs = block.flatMapIndexed { i, line ->
             songRegex.findAll(collapse(line)).map { i to it.groupValues[1] }.toList()
         }
-        // Divisor Ministerio x Vida Crista: o titulo da secao, desenhado com sublinhados
-        // entre as letras ("V___I___D___A___C___R___I___S___T___Ã"). O 2o cantico e a
-        // reserva, mas falha quando a extracao perde algum cantico.
-        val marker = block.indexOfFirst {
-            collapse(it).replace("_", "").contains(vocab.vidaMarker)
-        }
+        // Divisor Ministerio x Vida Crista: o titulo da secao, desenhado com um enfeite
+        // entre as letras ("V___I___D___A___C___R___I___S___T___Ã"). O enfeite sai como
+        // sublinhado no desktop e como caractere de controle no celular, entao o que vale
+        // e so a letra. O 2o cantico e a reserva, mas falha quando a extracao o perde.
+        val marker = block.indexOfFirst { soLetras(it).contains(vocab.vidaMarker) }
         val boundary = marker.takeIf { it >= 0 } ?: songs.getOrNull(1)?.first ?: Int.MAX_VALUE
 
         val parts = collectParts(block)
@@ -256,14 +267,14 @@ object MwbParser {
             // Titulo quebrado no hifen: emenda mesmo sem a duracao nesta linha, que pode
             // ter ficado na seguinte ("...El Cuerpo Go-" / "bernante..." / "(15 mins.)").
             if (!titulo.endsWith("-")) return null
-            if (next.isEmpty() || next.contains(Regex("\\d{1,2}\\.\\s"))) return null
+            if (next.isEmpty() || next.contains(outraParteRegex)) return null
             val minutos = afterNext?.let { minutesRegex.find(it) }?.groupValues?.get(1)
             return (titulo.dropLast(1) + next) to minutos
         }
         // A duracao vem logo depois do titulo; mais para a direita ja e outra coisa.
         if (m.range.first > 60) return null
         val cont = next.substring(0, m.range.first).trim()
-        if (cont.contains(Regex("\\d{1,2}\\.\\s"))) return null // ja e a proxima parte
+        if (cont.contains(outraParteRegex)) return null // ja e a proxima parte
         val full = when {
             cont.isEmpty() -> titulo
             titulo.endsWith("-") -> titulo.dropLast(1) + cont

@@ -51,20 +51,57 @@ object MwbTextExtractor {
             if (words.isEmpty()) return@forEach
             sb.append(layoutPage(words))
         }
+        return compoeAcentos(sb.toString())
+    }
+
+    /** Letra + acento combinante -> letra acentuada. Cobre o que PT e ES usam. */
+    private val ACENTOS: Map<Pair<Char, Char>, Char> = buildMap {
+        fun marca(acento: Char, bases: String, compostas: String) =
+            bases.forEachIndexed { i, base -> put(base to acento, compostas[i]) }
+        marca('\u0301', "aeiouAEIOU", "áéíóúÁÉÍÓÚ") // agudo
+        marca('\u0300', "aeiouAEIOU", "àèìòùÀÈÌÒÙ") // grave
+        marca('\u0302', "aeiouAEIOU", "âêîôûÂÊÎÔÛ") // circunflexo
+        marca('\u0303', "anoANO", "ãñõÃÑÕ") // til
+        marca('\u0308', "aeiouAEIOU", "äëïöüÄËÏÖÜ") // trema
+        marca('\u0327', "cC", "çÇ") // cedilha
+    }
+
+    /**
+     * A apostila desenha os acentos como glifo separado. O PDFBox do desktop devolve a
+     * letra ja composta ("ó"), mas o port do Android devolve a forma decomposta ("o" +
+     * U+0301) e ainda troca o "i" pelo sem pingo (U+0131), que a fonte usa por baixo do
+     * acento. Sem compor, "Canción" nao e o "Canción" que o parser procura: nenhum
+     * cantico seria encontrado e a semana chegaria pela metade no celular.
+     */
+    private fun compoeAcentos(texto: String): String {
+        val sb = StringBuilder(texto.length)
+        texto.forEach { c ->
+            val ch = when (c) {
+                'ı' -> 'i' // U+0131, o "i" sem pingo que fica sob o acento
+                'ȷ' -> 'j' // U+0237, idem para o "j"
+                else -> c
+            }
+            val composta = sb.lastOrNull()?.let { ACENTOS[it to ch] }
+            if (composta != null) sb.setCharAt(sb.length - 1, composta) else sb.append(ch)
+        }
         return sb.toString()
     }
 
     /**
-     * O numero da pagina fica sozinho na margem, na primeira linha -- e antes grudava no
-     * cabecalho da semana ("...JEREMIAS 13-15 2"), fazendo o capitulo final ser confundido
-     * com ele. Aqui ele e reconhecido pelo isolamento e descartado na origem.
+     * O numero da pagina fica sozinho na margem, na linha do cabecalho -- e antes grudava
+     * nele ("...JEREMIAS 13-15 2"), fazendo o capitulo final ser confundido com ele. Aqui
+     * ele e reconhecido pelo isolamento e descartado na origem.
+     *
+     * Olha as duas primeiras linhas porque o acento que a fonte desenha por cima do
+     * cabecalho ("JEREM´IAS") fica alto o bastante para formar uma linha antes dele.
      */
     private fun semNumeroDaPagina(words: List<PdfWord>): List<PdfWord> {
         if (words.isEmpty()) return words
-        val topo = words.minOf { it.y }
-        val primeira = words.filter { it.y - topo <= LINE_TOLERANCE }.sortedBy { it.x0 }
-        val numero = primeira.filter { w ->
-            w.text.all(Char::isDigit) && primeira.none { it !== w && distancia(it, w) < ISOLATION_GAP }
+        val numero = groupLines(words).take(2).flatMap { linha ->
+            linha.filter { w ->
+                w.text.all(Char::isDigit) &&
+                    linha.none { it !== w && distancia(it, w) < ISOLATION_GAP }
+            }
         }
         return words - numero.toSet()
     }
