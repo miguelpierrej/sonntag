@@ -14,7 +14,6 @@ import com.example.sonntag.pdf.WeekendPdfStrings
 class WeekendMonthlyLayout(
     private val data: MonthlyProgramPdfData,
     private val geradoEm: String,
-    private val iconBytes: ByteArray?,
 ) {
 
     private val marginLeft = 50f
@@ -28,22 +27,15 @@ class WeekendMonthlyLayout(
 
         paginas.forEachIndexed { index, blocos ->
             if (index > 0) canvas.newPage()
-            var y = if (index == 0) {
-                canvas.headerBand(
-                    marginLeft = marginLeft,
-                    contentWidth = contentWidth,
-                    congregacao = data.congregacao,
-                    title = data.labels.tituloMensal,
-                    subtitle = data.mesLabel,
-                    iconBytes = iconBytes,
-                )
-            } else {
-                canvas.compactHeader(
-                    marginLeft,
-                    contentWidth,
-                    "${data.labels.tituloMensal} — ${data.mesLabel}",
-                )
-            }
+            // O cartao se repete em todas as folhas: cada uma se explica sozinha.
+            var y = canvas.titleCard(
+                marginLeft = marginLeft,
+                contentWidth = contentWidth,
+                title = data.labels.tituloMensal,
+                subtitle = data.mesLabel,
+                congregacaoLabel = data.labels.common.congregacao,
+                congregacao = data.congregacao,
+            )
 
             if (index == 0 && data.reunioes.isEmpty()) {
                 canvas.text(
@@ -69,15 +61,14 @@ class WeekendMonthlyLayout(
 
         val paginas = mutableListOf<MutableList<PdfMeetingLine>>()
         var atual = mutableListOf<PdfMeetingLine>()
-        // Primeira pagina comeca abaixo da faixa; as demais, do cabecalho enxuto.
-        var y = canvas.pageHeight - 50f - 80f - 16f
+        var y = canvas.pageHeight - TITLE_CARD_SPACE
 
         data.reunioes.forEach { line ->
             val altura = blockHeight(canvas, line, contentWidth)
             if (y - altura < marginBottom + 24f && atual.isNotEmpty()) {
                 paginas += atual
                 atual = mutableListOf()
-                y = canvas.pageHeight - 40f - 24f
+                y = canvas.pageHeight - TITLE_CARD_SPACE
             }
             atual += line
             y -= altura + blockGap
@@ -123,12 +114,13 @@ class WeekendMonthlyLayout(
         val rowVertPad = 6f
         val lineGap = 4f
 
-        canvas.fillRect(x, y - blockHeaderHeight, width, blockHeaderHeight, DocColors.BlockHeader)
+        // Faixa azul da reuniao, com o texto por cima.
+        canvas.fillRect(x, y - blockHeaderHeight, width, blockHeaderHeight, DocColors.Navy)
         canvas.text(
             "${line.dateLabel} — ${line.hora}",
             x + 12f,
             y - 19f,
-            TextStyle(13f, DocColors.Title, FontStyle.BOLD),
+            TextStyle(13f, DocColor.White, FontStyle.BOLD),
         )
         var cursor = y - blockHeaderHeight
 

@@ -11,7 +11,15 @@ enum class SyncSection(val id: String, val label: String, val tables: List<Strin
     FIM_DE_SEMANA("fim_de_semana", "Programas de fim de semana", listOf("weekend_programs")),
     MEIO_DE_SEMANA("meio_de_semana", "Programas de meio de semana", listOf("midweek_programs")),
     AUDIO_VIDEO("audio_video", "Áudio/vídeo e acomodadores", listOf("av_assignments")),
-    LIMPEZA("limpeza", "Limpeza", listOf("cleaning_groups", "cleaning_assignments"));
+    LIMPEZA("limpeza", "Limpeza", listOf("cleaning_groups", "cleaning_assignments")),
+    PREGACAO(
+        "pregacao",
+        "Pregação",
+        listOf(
+            "preaching_spots", "preaching_groups",
+            "preaching_templates", "preaching_shifts", "preaching_notes",
+        ),
+    );
 
     companion object {
         fun fromId(id: String): SyncSection? = entries.firstOrNull { it.id == id }
@@ -27,5 +35,6 @@ val SyncSection.requires: List<SyncSection>
         SyncSection.FIM_DE_SEMANA, SyncSection.MEIO_DE_SEMANA, SyncSection.AUDIO_VIDEO ->
             listOf(SyncSection.MEMBROS, SyncSection.REUNIOES)
         SyncSection.LIMPEZA -> listOf(SyncSection.REUNIOES)
+        SyncSection.PREGACAO -> listOf(SyncSection.MEMBROS)
         else -> emptyList()
     }

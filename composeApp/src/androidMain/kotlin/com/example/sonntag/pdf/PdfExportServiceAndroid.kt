@@ -13,6 +13,7 @@ import com.example.sonntag.pdf.render.WeekendMonthlyPngLayout
 import com.example.sonntag.pdf.render.AvScheduleLayout
 import com.example.sonntag.pdf.render.CleaningLayout
 import com.example.sonntag.pdf.render.MidweekProgramLayout
+import com.example.sonntag.pdf.render.PreachingCalendarLayout
 import com.example.sonntag.pdf.render.WeekendMeetingLayout
 import com.example.sonntag.pdf.render.WeekendMonthlyLayout
 import com.example.sonntag.platform.AndroidApp
@@ -36,11 +37,7 @@ class PdfExportServiceAndroid : PdfExportService {
     override suspend fun exportCleaningSchedule(data: CleaningSchedulePdfData): Boolean {
         val bytes = withContext(Dispatchers.IO) {
             renderPdf(LETTER_WIDTH, LETTER_HEIGHT) { canvas ->
-                CleaningLayout(
-                    data = data,
-                    geradoEm = timestamp(),
-                    iconBytes = asset("icons/limpeza.png"),
-                ).draw(canvas)
+                CleaningLayout(data = data, geradoEm = timestamp()).draw(canvas)
             }
         }
         return save("${data.fileSlug}.pdf", bytes)
@@ -49,7 +46,7 @@ class PdfExportServiceAndroid : PdfExportService {
     override suspend fun exportMeetingProgram(data: MeetingProgramPdfData): Boolean {
         val bytes = withContext(Dispatchers.IO) {
             renderPdf(LETTER_WIDTH, LETTER_HEIGHT) { canvas ->
-                WeekendMeetingLayout(data, timestamp(), asset("icons/conferencia.png")).draw(canvas)
+                WeekendMeetingLayout(data, timestamp()).draw(canvas)
             }
         }
         return save("${data.fileSlug}.pdf", bytes)
@@ -58,7 +55,7 @@ class PdfExportServiceAndroid : PdfExportService {
     override suspend fun exportMonthlyProgram(data: MonthlyProgramPdfData): Boolean {
         val bytes = withContext(Dispatchers.IO) {
             renderPdf(LETTER_WIDTH, LETTER_HEIGHT) { canvas ->
-                WeekendMonthlyLayout(data, timestamp(), asset("icons/conferencia.png")).draw(canvas)
+                WeekendMonthlyLayout(data, timestamp()).draw(canvas)
             }
         }
         return save("${data.fileSlug}.pdf", bytes)
@@ -66,7 +63,14 @@ class PdfExportServiceAndroid : PdfExportService {
 
     override suspend fun exportMidweekProgram(data: MidweekProgramPdfData): Boolean {
         val bytes = withContext(Dispatchers.IO) {
-            renderPdf(A4_WIDTH, A4_HEIGHT) { canvas -> MidweekProgramLayout(data).draw(canvas) }
+            renderPdf(A4_WIDTH, A4_HEIGHT) { canvas ->
+                MidweekProgramLayout(
+                    data = data,
+                    iconTesouros = asset("icons/secao-tesouros.png"),
+                    iconMinisterio = asset("icons/secao-ministerio.png"),
+                    iconVida = asset("icons/secao-vida.png"),
+                ).draw(canvas)
+            }
         }
         return save("${data.fileSlug}.pdf", bytes)
     }
@@ -85,6 +89,15 @@ class PdfExportServiceAndroid : PdfExportService {
             }
         }
         return save("${data.fileSlug}.pdf", bytes)
+    }
+
+    override suspend fun exportPreachingProgram(data: PreachingProgramPdfData): Boolean {
+        val bytes = withContext(Dispatchers.IO) {
+            renderPdf(A4_WIDTH, A4_HEIGHT) { canvas ->
+                PreachingCalendarLayout(data, timestamp()).draw(canvas)
+            }
+        }
+        return save("${'$'}{data.fileSlug}.pdf", bytes)
     }
 
     override suspend fun exportCleaningSchedulePng(data: CleaningSchedulePdfData): Boolean {

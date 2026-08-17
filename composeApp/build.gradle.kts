@@ -236,6 +236,34 @@ tasks.register<JavaExec>("renderScreens") {
     args(System.getenv("OUT_DIR") ?: "/tmp/screens", System.getenv("SCREEN") ?: "painel")
 }
 
+tasks.register<JavaExec>("renderDocs") {
+    val jvmMain = kotlin.jvm().compilations.getByName("main")
+    dependsOn(jvmMain.compileTaskProvider)
+    classpath = jvmMain.output.allOutputs + jvmMain.runtimeDependencyFiles
+    mainClass.set("com.example.sonntag.tools.RenderDocsKt")
+    args(System.getenv("OUT") ?: "/tmp/docs")
+}
+
+tasks.register<JavaExec>("checkCalendar") {
+    val jvmMain = kotlin.jvm().compilations.getByName("main")
+    dependsOn(jvmMain.compileTaskProvider)
+    classpath = jvmMain.output.allOutputs + jvmMain.runtimeDependencyFiles
+    mainClass.set("com.example.sonntag.tools.CheckCalendarKt")
+}
+
+tasks.register<JavaExec>("renderPreaching") {
+    val jvmMain = kotlin.jvm().compilations.getByName("main")
+    dependsOn(jvmMain.compileTaskProvider)
+    classpath = jvmMain.output.allOutputs + jvmMain.runtimeDependencyFiles
+    mainClass.set("com.example.sonntag.tools.RenderPreachingKt")
+    args(
+        System.getenv("DB") ?: "${System.getProperty("user.home")}/.salao-app/data.db",
+        System.getenv("ANO") ?: "2026",
+        System.getenv("MES") ?: "8",
+        System.getenv("OUT") ?: "/tmp/docs",
+    )
+}
+
 tasks.register<JavaExec>("repairDb") {
     val jvmMain = kotlin.jvm().compilations.getByName("main")
     dependsOn(jvmMain.compileTaskProvider)

@@ -14,6 +14,7 @@ import com.example.sonntag.pdf.render.PngColors
 import com.example.sonntag.pdf.render.TopDownCanvas
 import com.example.sonntag.pdf.render.MidweekProgramLayout
 import com.example.sonntag.pdf.render.PdfBoxCanvas
+import com.example.sonntag.pdf.render.PreachingCalendarLayout
 import org.apache.pdfbox.pdmodel.PDDocument
 import org.apache.pdfbox.pdmodel.PDPage
 import org.apache.pdfbox.pdmodel.PDPageContentStream
@@ -98,6 +99,11 @@ private class PdfExportServiceJvm : PdfExportService {
         return runCatching { writeMidweekAssignmentsPdf(path, data) }.isSuccess
     }
 
+    override suspend fun exportPreachingProgram(data: PreachingProgramPdfData): Boolean {
+        val path = chooseSavePath("${'$'}{data.fileSlug}.pdf", data.labels.dialogTitle) ?: return false
+        return runCatching { writePreachingProgramPdf(path, data) }.isSuccess
+    }
+
     override suspend fun exportAvSchedule(data: AvSchedulePdfData): Boolean {
         val path = chooseSavePath("${data.fileSlug}.pdf", data.labels.dialogTitle) ?: return false
         return runCatching { writeAvSchedulePdf(path, data) }.isSuccess
@@ -109,11 +115,7 @@ private class PdfExportServiceJvm : PdfExportService {
     private fun writeMonthlyProgramPdf(path: String, data: MonthlyProgramPdfData) {
         val document = PDDocument()
         PdfBoxCanvas(document).use { canvas ->
-            WeekendMonthlyLayout(
-                data = data,
-                geradoEm = currentTimestamp(),
-                iconBytes = resourceBytes("icons/conferencia.png"),
-            ).draw(canvas)
+            WeekendMonthlyLayout(data = data, geradoEm = currentTimestamp()).draw(canvas)
         }
         document.save(path)
         document.close()
@@ -126,11 +128,7 @@ private class PdfExportServiceJvm : PdfExportService {
     private fun writeMeetingProgramPdf(path: String, data: MeetingProgramPdfData) {
         val document = PDDocument()
         PdfBoxCanvas(document).use { canvas ->
-            WeekendMeetingLayout(
-                data = data,
-                geradoEm = currentTimestamp(),
-                iconBytes = resourceBytes("icons/conferencia.png"),
-            ).draw(canvas)
+            WeekendMeetingLayout(data = data, geradoEm = currentTimestamp()).draw(canvas)
         }
         document.save(path)
         document.close()
@@ -206,11 +204,7 @@ private class PdfExportServiceJvm : PdfExportService {
     private fun writeCleaningPdf(path: String, data: CleaningSchedulePdfData) {
         val document = PDDocument()
         PdfBoxCanvas(document).use { canvas ->
-            CleaningLayout(
-                data = data,
-                geradoEm = currentTimestamp(),
-                iconBytes = resourceBytes("icons/limpeza.png"),
-            ).draw(canvas)
+            CleaningLayout(data = data, geradoEm = currentTimestamp()).draw(canvas)
         }
         document.save(path)
         document.close()
@@ -240,7 +234,12 @@ private class PdfExportServiceJvm : PdfExportService {
     private fun writeMidweekProgramPdf(path: String, data: MidweekProgramPdfData) {
         val document = PDDocument()
         PdfBoxCanvas(document, PDRectangle.A4).use { canvas ->
-            MidweekProgramLayout(data).draw(canvas)
+            MidweekProgramLayout(
+                data = data,
+                iconTesouros = resourceBytes("icons/secao-tesouros.png"),
+                iconMinisterio = resourceBytes("icons/secao-ministerio.png"),
+                iconVida = resourceBytes("icons/secao-vida.png"),
+            ).draw(canvas)
         }
         document.save(path)
         document.close()
@@ -283,6 +282,17 @@ private class PdfExportServiceJvm : PdfExportService {
     // ─── Audio/video e acomodadores ──────────────────────────────────────────
 
     /** Layout compartilhado com o Android: ver [AvScheduleLayout]. */
+    /** Layout compartilhado com o Android: ver [PreachingCalendarLayout]. */
+    private fun writePreachingProgramPdf(path: String, data: PreachingProgramPdfData) {
+        val document = PDDocument()
+        PdfBoxCanvas(document, PDRectangle.A4).use { canvas ->
+            PreachingCalendarLayout(data, currentTimestamp()).draw(canvas)
+        }
+        document.save(path)
+        document.close()
+        openInDesktop(File(path))
+    }
+
     private fun writeAvSchedulePdf(path: String, data: AvSchedulePdfData) {
         val document = PDDocument()
         PdfBoxCanvas(document).use { canvas ->

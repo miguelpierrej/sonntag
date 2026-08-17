@@ -7,6 +7,9 @@ import com.example.sonntag.data.repos.MeetingDaysRepository
 import com.example.sonntag.data.repos.MeetingsRepository
 import com.example.sonntag.data.repos.MembersRepository
 import com.example.sonntag.data.repos.MidweekProgramsRepository
+import com.example.sonntag.data.repos.PreachingGroupsRepository
+import com.example.sonntag.data.repos.PreachingScheduleRepository
+import com.example.sonntag.data.repos.PreachingSpotsRepository
 import com.example.sonntag.data.repos.PreferencesRepository
 import com.example.sonntag.data.repos.SettingsRepository
 import com.example.sonntag.data.repos.SyncPeersRepository
@@ -31,6 +34,8 @@ import com.example.sonntag.pdf.createPdfExportService
 import com.example.sonntag.ui.screens.av.AvAssignmentsViewModel
 import com.example.sonntag.ui.screens.cleaning.CleaningViewModel
 import com.example.sonntag.ui.screens.cleaninggroups.CleaningGroupsViewModel
+import com.example.sonntag.ui.screens.preaching.PreachingCalendarViewModel
+import com.example.sonntag.ui.screens.preaching.PreachingSetupViewModel
 import com.example.sonntag.ui.screens.dashboard.DashboardViewModel
 import com.example.sonntag.ui.screens.datatransfer.DataTransferViewModel
 import com.example.sonntag.ui.screens.members.MembersViewModel
@@ -62,6 +67,9 @@ val appModule = module {
     single { MidweekProgramsRepository(get(), get()) }
     single { CleaningAssignmentsRepository(get(), get()) }
     single { AvAssignmentsRepository(get(), get()) }
+    single { PreachingSpotsRepository(get(), get()) }
+    single { PreachingGroupsRepository(get(), get()) }
+    single { PreachingScheduleRepository(get(), get()) }
     single { PreferencesRepository(get()) }
     single { TalkOutlinesRepository(get()) }
     single { SyncPeersRepository(get()) }
@@ -79,6 +87,8 @@ val appModule = module {
     single { InitialSetupViewModel(get(), get(), get()) }
     single { MembersViewModel(get()) }
     single { CleaningGroupsViewModel(get()) }
+    single { PreachingSetupViewModel(get(), get(), get()) }
+    single { PreachingCalendarViewModel(get(), get(), get(), get(), get(), get(), get()) }
     single { DataTransferViewModel(get(), get(), get(), get(), get(), get()) }
     single { DashboardViewModel(get(), get(), get(), get(), get(), get(), get(), get()) }
     single { SettingsViewModel(get(), get(), get(), get()) }

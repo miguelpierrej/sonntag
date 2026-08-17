@@ -2,7 +2,10 @@ package com.example.sonntag.pdf.render
 
 import com.example.sonntag.pdf.CleaningSchedulePdfData
 
-/** Paleta dos documentos, espelhando o que o desktop ja usava. */
+/**
+ * Paleta dos documentos. As cores vieram dos modelos oficiais em PDF (amostradas
+ * pixel a pixel), entao o que sai do app tem o mesmo tom do impresso de referencia.
+ */
 object DocColors {
     val Title = DocColor.hex(0x1A1D29)
     val Muted = DocColor.hex(0x787C8A)
@@ -10,12 +13,39 @@ object DocColors {
     val BlockHeader = DocColor.hex(0xE8EBF0)
     val Separator = DocColor.hex(0xE8EAF0)
     val Zebra = DocColor.hex(0xF7F8FA)
-    val Maroon = DocColor.hex(0x561745)
     val Ink = DocColor.hex(0x222228)
-    val Teal = DocColor.hex(0x2E7A88)
-    val Gold = DocColor.hex(0xA86C00)
-    val GrayBox = DocColor.hex(0xEBE6EB)
-    val TableHeader = DocColor.hex(0xE5C4C6)
+
+    /** Vinho do comprovante de designacao (S-89), que segue o seu proprio impresso. */
+    val Maroon = DocColor.hex(0x561745)
+
+    /** Azul dos titulos, faixas e blocos de congregacao. */
+    val Navy = DocColor.hex(0x083E6B)
+
+    /** Fundo claro da caixa da congregacao e das etiquetas de dia. */
+    val NavySoft = DocColor.hex(0xDBE5F1)
+
+    /** Texto sobre [NavySoft]. */
+    val NavyInk = DocColor.hex(0x17365D)
+
+    /** Secao "Tesouros da Palavra de Deus". */
+    val Teal = DocColor.hex(0x3C7F8B)
+    val TealDark = DocColor.hex(0x2A6975)
+
+    /** Secao "Faca seu melhor no ministerio". */
+    val Gold = DocColor.hex(0xA86B08)
+    val GoldDark = DocColor.hex(0xA26C00)
+
+    /** Secao "Nossa Vida Crista" e cabecalho da tabela Dirigente/Leitor. */
+    val Red = DocColor.hex(0x99121C)
+
+    // Grade do calendario de pregacao, nos tons do modelo impresso da congregacao.
+    val GridHeader = DocColor.hex(0x729FCF)
+    val GridDayStrip = DocColor.hex(0xB6C7E6)
+    val GridOutside = DocColor.hex(0xE7E6E6)
+    val NameInk = DocColor.hex(0x002060)
+
+    /** Vermelho dos avisos ("Todos los grupos en el Salón"). */
+    val Alert = DocColor.hex(0xC61717)
 }
 
 /**
@@ -27,7 +57,6 @@ object DocColors {
 class CleaningLayout(
     private val data: CleaningSchedulePdfData,
     private val geradoEm: String,
-    private val iconBytes: ByteArray?,
 ) {
 
     fun draw(canvas: DocumentCanvas) {
@@ -43,14 +72,14 @@ class CleaningLayout(
         val rowMinHeight = 26f
         val rowLineHeight = 14f
 
-        var y = canvas.headerBand(
+        var y = canvas.titleCard(
             marginLeft = marginLeft,
             contentWidth = contentWidth,
-            congregacao = data.congregacao,
             title = data.labels.title,
             subtitle = data.mesLabel,
-            iconBytes = iconBytes,
-        ) - 4f
+            congregacaoLabel = data.labels.common.congregacao,
+            congregacao = data.congregacao,
+        )
 
         val xWeek = marginLeft
         val xMeetings = marginLeft + colWeek

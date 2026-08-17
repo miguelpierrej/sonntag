@@ -22,30 +22,21 @@ class AvScheduleLayout(
         val colX = listOf(0f, 0.29f, 0.50f, 0.75f).map { marginLeft + 12f + contentWidth * it }
         val colWidth = listOf(0.27f, 0.19f, 0.23f, 0.25f).map { contentWidth * it }
 
-        val dateStyle = TextStyle(10f, DocColors.Title, FontStyle.BOLD)
+        val dateStyle = TextStyle(10f, DocColor.White, FontStyle.BOLD)
         val headerStyle = TextStyle(8.5f, DocColors.Title, FontStyle.BOLD)
         val nameStyle = TextStyle(9f, DocColors.Title)
         val lineHeight = 13.5f
-        val dateToHeaderGap = 16f
+
+        /** Faixa azul atras da data: separa uma reuniao da outra de longe. */
+        val dateBandHeight = 18f
+        val dateBandBelow = 5f
+        val dateToHeaderGap = 20f
         val headerToNamesGap = 13.5f
         val blockGap = 14f
 
         fun startPage(isFirst: Boolean): Float {
             if (!isFirst) canvas.newPage()
-            var y = canvas.pageHeight - 55f
-            if (isFirst) {
-                val titleStyle = TextStyle(12f, DocColors.Title, FontStyle.BOLD)
-                canvas.text(
-                    canvas.fitText(data.congregacao, titleStyle, contentWidth * 0.55f),
-                    marginLeft, y, titleStyle,
-                )
-                val right = data.labels.title
-                canvas.text(right, marginLeft + contentWidth - canvas.measure(right, titleStyle), y, titleStyle)
-                y -= 8f
-                canvas.line(marginLeft, y, marginLeft + contentWidth, y, DocColors.Title, 1f)
-                y -= 22f
-            }
-            return y
+            return drawHeader(canvas, marginLeft, contentWidth)
         }
 
         /** Linhas de nome de cada coluna, ja com o sufixo (Audio)/(Video). */
@@ -74,7 +65,8 @@ class AvScheduleLayout(
                 y = startPage(isFirst = false)
             }
 
-            canvas.text("${line.dataLabel} ${line.tipoLabel}", marginLeft, y, dateStyle)
+            canvas.fillRect(marginLeft, y - dateBandBelow, contentWidth, dateBandHeight, DocColors.Navy)
+            canvas.text("${line.dataLabel} ${line.tipoLabel}", marginLeft + 8f, y, dateStyle)
             y -= dateToHeaderGap
 
             val headers = listOf(
@@ -105,4 +97,15 @@ class AvScheduleLayout(
         val footerWidth = canvas.measure(geradoEm, footerStyle)
         canvas.text(geradoEm, marginLeft + contentWidth - footerWidth, marginBottom - 15f, footerStyle)
     }
+
+    /** Mesmo cartao de titulo dos demais documentos. Devolve o Y do primeiro bloco. */
+    private fun drawHeader(canvas: DocumentCanvas, marginLeft: Float, contentWidth: Float): Float =
+        canvas.titleCard(
+            marginLeft = marginLeft,
+            contentWidth = contentWidth,
+            title = data.labels.title,
+            subtitle = data.mesLabel,
+            congregacaoLabel = data.labels.common.congregacao,
+            congregacao = data.congregacao,
+        )
 }

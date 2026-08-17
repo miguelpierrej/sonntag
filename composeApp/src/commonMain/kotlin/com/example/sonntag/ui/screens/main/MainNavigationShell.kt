@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.Campaign
 import androidx.compose.material.icons.outlined.CleaningServices
 import androidx.compose.material.icons.outlined.Dashboard
 import androidx.compose.material.icons.outlined.ExpandMore
@@ -104,6 +105,7 @@ private fun navEntries(onNavigate: (String) -> Unit): List<NavEntry> = listOf(
         children = listOf(
             NavItem("weekend", "Fim de semana", Icons.Outlined.Weekend) { WeekendProgramsScreen().Content() },
             NavItem("midweek", "Meio de semana", Icons.AutoMirrored.Outlined.MenuBook) { MidweekProgramsScreen().Content() },
+            NavItem("pregacao", "Pregação", Icons.Outlined.Campaign) { PreachingScreen().Content() },
         ),
     ),
     NavEntry.Single(

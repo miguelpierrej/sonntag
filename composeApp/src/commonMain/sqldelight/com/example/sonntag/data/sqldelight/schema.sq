@@ -180,6 +180,88 @@ CREATE TABLE talk_outlines (
     titulo TEXT NOT NULL
 );
 
+-- ─── Pregacao (carrinhos e pregacao de campo) ────────────────────────────────
+
+-- Pontos: onde o carrinho fica e de onde os grupos saem para pregar
+CREATE TABLE preaching_spots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome TEXT NOT NULL, -- "Feria Omacha", "Salón del Reino"
+    endereco TEXT, -- sai no rodape do documento
+    tipo TEXT NOT NULL, -- CARRITO, PREDICACION ou AMBOS
+    -- Sincronizacao: identidade global, carimbo de alteracao e exclusao logica
+    uuid TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    updated_by TEXT NOT NULL,
+    deleted INTEGER NOT NULL DEFAULT 0
+);
+
+-- Grupos de pregacao, com dirigente e ponto de encontro
+CREATE TABLE preaching_groups (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome TEXT NOT NULL,
+    dirigente_id INTEGER,
+    auxiliar_id INTEGER,
+    spot_id INTEGER,
+    ordem INTEGER NOT NULL DEFAULT 0,
+    -- Sincronizacao: identidade global, carimbo de alteracao e exclusao logica
+    uuid TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    updated_by TEXT NOT NULL,
+    deleted INTEGER NOT NULL DEFAULT 0
+);
+
+-- Um turno do calendario: hora, ponto e ate quatro designados (duas duplas)
+CREATE TABLE preaching_shifts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tipo TEXT NOT NULL, -- CARRITO ou PREDICACION
+    data TEXT NOT NULL, -- yyyy-MM-dd
+    hora_inicio TEXT NOT NULL, -- HH:mm
+    hora_fim TEXT, -- HH:mm; so os carrinhos usam faixa
+    spot_id INTEGER,
+    nota TEXT, -- destaque do dia ("Todos los Grupos en el Salón")
+    designado1_id INTEGER,
+    designado2_id INTEGER,
+    designado3_id INTEGER,
+    designado4_id INTEGER,
+    ordem INTEGER NOT NULL DEFAULT 0,
+    -- Sincronizacao: identidade global, carimbo de alteracao e exclusao logica
+    uuid TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    updated_by TEXT NOT NULL,
+    deleted INTEGER NOT NULL DEFAULT 0
+);
+
+-- O padrao que se repete toda semana, usado para gerar o mes
+CREATE TABLE preaching_templates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tipo TEXT NOT NULL, -- CARRITO ou PREDICACION
+    dia_semana INTEGER NOT NULL, -- 1=seg, 2=ter, ..., 7=dom
+    hora_inicio TEXT NOT NULL,
+    hora_fim TEXT,
+    spot_id INTEGER,
+    ordem INTEGER NOT NULL DEFAULT 0,
+    -- Sincronizacao: identidade global, carimbo de alteracao e exclusao logica
+    uuid TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    updated_by TEXT NOT NULL,
+    deleted INTEGER NOT NULL DEFAULT 0
+);
+
+-- Observacao livre do rodape, por mes e por tipo de programa
+CREATE TABLE preaching_notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tipo TEXT NOT NULL,
+    ano INTEGER NOT NULL,
+    mes INTEGER NOT NULL,
+    texto TEXT NOT NULL,
+    -- Sincronizacao: identidade global, carimbo de alteracao e exclusao logica
+    uuid TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    updated_by TEXT NOT NULL,
+    deleted INTEGER NOT NULL DEFAULT 0,
+    UNIQUE(tipo, ano, mes)
+);
+
 -- Um uuid nunca se repete: e a identidade da linha entre maquinas
 CREATE UNIQUE INDEX settings_uuid ON settings(uuid);
 CREATE UNIQUE INDEX meeting_days_uuid ON meeting_days(uuid);
@@ -190,6 +272,11 @@ CREATE UNIQUE INDEX weekend_programs_uuid ON weekend_programs(uuid);
 CREATE UNIQUE INDEX midweek_programs_uuid ON midweek_programs(uuid);
 CREATE UNIQUE INDEX cleaning_assignments_uuid ON cleaning_assignments(uuid);
 CREATE UNIQUE INDEX av_assignments_uuid ON av_assignments(uuid);
+CREATE UNIQUE INDEX preaching_spots_uuid ON preaching_spots(uuid);
+CREATE UNIQUE INDEX preaching_groups_uuid ON preaching_groups(uuid);
+CREATE UNIQUE INDEX preaching_shifts_uuid ON preaching_shifts(uuid);
+CREATE UNIQUE INDEX preaching_templates_uuid ON preaching_templates(uuid);
+CREATE UNIQUE INDEX preaching_notes_uuid ON preaching_notes(uuid);
 
 -- Ate quando ja trocamos dados com cada aparelho conhecido. Permite enviar so o
 -- que mudou desde a ultima sincronizacao, em vez do banco inteiro.
@@ -496,3 +583,104 @@ deleteAvAssignment:
 UPDATE av_assignments SET deleted = 1, updated_at = ?, updated_by = ? WHERE meeting_id = ?;
 
 
+
+-- Preaching spots queries
+
+getAllPreachingSpots:
+SELECT * FROM preaching_spots WHERE deleted = 0 ORDER BY nome ASC;
+
+getPreachingSpotById:
+SELECT * FROM preaching_spots WHERE id = ? AND deleted = 0;
+
+insertPreachingSpot:
+INSERT INTO preaching_spots (nome, endereco, tipo, uuid, updated_at, updated_by)
+VALUES (?, ?, ?, ?, ?, ?);
+
+updatePreachingSpot:
+UPDATE preaching_spots SET nome = ?, endereco = ?, tipo = ?, updated_at = ?, updated_by = ?, deleted = 0
+WHERE id = ?;
+
+deletePreachingSpot:
+UPDATE preaching_spots SET deleted = 1, updated_at = ?, updated_by = ? WHERE id = ?;
+
+-- Preaching groups queries
+
+getAllPreachingGroups:
+SELECT * FROM preaching_groups WHERE deleted = 0 ORDER BY ordem ASC, nome ASC;
+
+getPreachingGroupById:
+SELECT * FROM preaching_groups WHERE id = ? AND deleted = 0;
+
+insertPreachingGroup:
+INSERT INTO preaching_groups (nome, dirigente_id, auxiliar_id, spot_id, ordem, uuid, updated_at, updated_by)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+updatePreachingGroup:
+UPDATE preaching_groups SET nome = ?, dirigente_id = ?, auxiliar_id = ?, spot_id = ?, ordem = ?,
+    updated_at = ?, updated_by = ?, deleted = 0
+WHERE id = ?;
+
+deletePreachingGroup:
+UPDATE preaching_groups SET deleted = 1, updated_at = ?, updated_by = ? WHERE id = ?;
+
+-- Preaching shifts queries
+
+getPreachingShiftsBetween:
+SELECT * FROM preaching_shifts
+WHERE deleted = 0 AND tipo = ? AND data >= ? AND data <= ?
+ORDER BY data ASC, hora_inicio ASC, ordem ASC;
+
+getPreachingShiftById:
+SELECT * FROM preaching_shifts WHERE id = ? AND deleted = 0;
+
+insertPreachingShift:
+INSERT INTO preaching_shifts (
+    tipo, data, hora_inicio, hora_fim, spot_id, nota,
+    designado1_id, designado2_id, designado3_id, designado4_id, ordem,
+    uuid, updated_at, updated_by
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+updatePreachingShift:
+UPDATE preaching_shifts SET
+    hora_inicio = ?, hora_fim = ?, spot_id = ?, nota = ?,
+    designado1_id = ?, designado2_id = ?, designado3_id = ?, designado4_id = ?, ordem = ?,
+    updated_at = ?, updated_by = ?, deleted = 0
+WHERE id = ?;
+
+deletePreachingShift:
+UPDATE preaching_shifts SET deleted = 1, updated_at = ?, updated_by = ? WHERE id = ?;
+
+-- Preaching templates queries
+
+getAllPreachingTemplates:
+SELECT * FROM preaching_templates WHERE deleted = 0 AND tipo = ?
+ORDER BY dia_semana ASC, hora_inicio ASC, ordem ASC;
+
+insertPreachingTemplate:
+INSERT INTO preaching_templates (tipo, dia_semana, hora_inicio, hora_fim, spot_id, ordem, uuid, updated_at, updated_by)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+updatePreachingTemplate:
+UPDATE preaching_templates SET dia_semana = ?, hora_inicio = ?, hora_fim = ?, spot_id = ?, ordem = ?,
+    updated_at = ?, updated_by = ?, deleted = 0
+WHERE id = ?;
+
+deletePreachingTemplate:
+UPDATE preaching_templates SET deleted = 1, updated_at = ?, updated_by = ? WHERE id = ?;
+
+-- Preaching notes queries
+
+getPreachingNote:
+SELECT * FROM preaching_notes WHERE tipo = ? AND ano = ? AND mes = ? AND deleted = 0;
+
+-- Inclui excluidos: o UNIQUE(tipo, ano, mes) exige reviver a linha em vez de inserir outra
+getPreachingNoteAny:
+SELECT * FROM preaching_notes WHERE tipo = ? AND ano = ? AND mes = ?;
+
+insertPreachingNote:
+INSERT INTO preaching_notes (tipo, ano, mes, texto, uuid, updated_at, updated_by)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+updatePreachingNote:
+UPDATE preaching_notes SET texto = ?, updated_at = ?, updated_by = ?, deleted = 0 WHERE id = ?;

@@ -257,10 +257,8 @@ class AvAssignmentsViewModel(
         val monthPadded = state.visibleMonth.toString().padStart(2, '0')
 
         return AvSchedulePdfData(
-            congregacao = buildString {
-                append(settings?.nome?.takeIf { it.isNotBlank() } ?: translator("Congregação"))
-                settings?.endereco?.let { addressSummary(it) }?.let { append(" - ").append(it) }
-            },
+            // So o nome: no cartao do cabecalho o endereco nao entra.
+            congregacao = settings?.nome?.takeIf { it.isNotBlank() } ?: translator("Congregação"),
             endereco = settings?.endereco?.takeIf { it.isNotBlank() },
             mesLabel = monthLabel,
             fileSlug = "ava_${state.visibleYear}-$monthPadded",
@@ -284,12 +282,6 @@ class AvAssignmentsViewModel(
         val day = date.dayOfMonth.toString().padStart(2, '0')
         val month = date.monthNumber.toString().padStart(2, '0')
         return "$day/$month/${date.year}"
-    }
-
-    /** Primeira linha/segmento do endereco, para caber ao lado do nome no cabecalho. */
-    private fun addressSummary(raw: String): String? {
-        val firstLine = raw.trim().lineSequence().firstOrNull()?.trim().orEmpty()
-        return firstLine.ifEmpty { null }
     }
 
     private fun shiftMonth(year: Int, month: Int, delta: Int): Pair<Int, Int> {

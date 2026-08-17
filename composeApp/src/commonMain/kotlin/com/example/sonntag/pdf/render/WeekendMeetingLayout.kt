@@ -6,7 +6,6 @@ import com.example.sonntag.pdf.MeetingProgramPdfData
 class WeekendMeetingLayout(
     private val data: MeetingProgramPdfData,
     private val geradoEm: String,
-    private val iconBytes: ByteArray?,
 ) {
 
     fun draw(canvas: DocumentCanvas) {
@@ -15,14 +14,14 @@ class WeekendMeetingLayout(
         val marginBottom = 60f
         val contentWidth = canvas.pageWidth - marginLeft - marginRight
 
-        var y = canvas.headerBand(
+        var y = canvas.titleCard(
             marginLeft = marginLeft,
             contentWidth = contentWidth,
-            congregacao = data.congregacao,
             title = data.labels.tituloReuniao,
             subtitle = data.dateLabel,
-            iconBytes = iconBytes,
-        ) - 30f
+            congregacaoLabel = data.labels.common.congregacao,
+            congregacao = data.congregacao,
+        ) - 6f
 
         val labelStyle = TextStyle(12f, DocColors.Muted)
         val valueSize = 14f
@@ -33,12 +32,12 @@ class WeekendMeetingLayout(
         val valueColWidth = contentWidth - labelColWidth - labelValueGap
         val blockHeaderHeight = 36f
 
-        canvas.fillRect(marginLeft, y - blockHeaderHeight, contentWidth, blockHeaderHeight, DocColors.BlockHeader)
+        canvas.fillRect(marginLeft, y - blockHeaderHeight, contentWidth, blockHeaderHeight, DocColors.Navy)
         canvas.text(
             "${data.dateLabel} — ${data.hora}",
             marginLeft + 14f,
             y - 22f,
-            TextStyle(14f, DocColors.Title, FontStyle.BOLD),
+            TextStyle(14f, DocColor.White, FontStyle.BOLD),
         )
         y -= blockHeaderHeight
 

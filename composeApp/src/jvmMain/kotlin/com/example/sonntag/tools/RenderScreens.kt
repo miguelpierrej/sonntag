@@ -21,6 +21,7 @@ import com.example.sonntag.ui.layout.WindowSize
 import com.example.sonntag.ui.screens.av.AvAssignmentsScreenContent
 import com.example.sonntag.ui.screens.cleaning.CleaningScreenContent
 import com.example.sonntag.ui.screens.datatransfer.DataTransferScreenContent
+import com.example.sonntag.ui.screens.preaching.PreachingScreenContent
 import com.example.sonntag.ui.screens.midweek.MidweekProgramsScreenContent
 import com.example.sonntag.ui.screens.weekend.WeekendProgramsScreenContent
 import com.example.sonntag.ui.theme.AppTheme
@@ -100,6 +101,7 @@ private fun Conteudo(tela: String, larguraDp: Int) {
                     "av" -> AvAssignmentsScreenContent()
                     "limpeza" -> CleaningScreenContent()
                     "dados" -> DataTransferScreenContent()
+                    "pregacao" -> PreachingScreenContent()
                 }
             }
         }

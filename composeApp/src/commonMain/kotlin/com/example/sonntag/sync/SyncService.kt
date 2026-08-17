@@ -14,11 +14,12 @@ internal fun referencedTable(column: String): String? = when {
     !column.endsWith("_id") -> null
     column == "meeting_id" -> "meetings"
     column == "group_id" -> "cleaning_groups"
+    column == "spot_id" -> "preaching_spots"
     else -> "members"
 }
 
 /** Tabelas para as quais outras apontam; podem ser arrastadas num envio incremental. */
-private val REFERENCIADAS = setOf("meetings", "members", "cleaning_groups")
+private val REFERENCIADAS = setOf("meetings", "members", "cleaning_groups", "preaching_spots")
 
 /** Colunas que nunca viajam: o id e local e o uuid identifica a linha. */
 private const val LOCAL_ID = "id"
@@ -44,6 +45,12 @@ internal fun naturalKey(table: String): List<String>? = when (table) {
     "cleaning_groups" -> listOf("nome")
     "cleaning_assignments" -> listOf("semana_iso", "ano")
     "weekend_programs", "midweek_programs", "av_assignments" -> listOf("meeting_id")
+    // Pontos e grupos sao reconhecidos pelo nome; turnos e padrao, pelo lugar que
+    // ocupam no calendario — os dois aparelhos podem ter gerado o mesmo mes.
+    "preaching_spots", "preaching_groups" -> listOf("nome")
+    "preaching_shifts" -> listOf("tipo", "data", "hora_inicio")
+    "preaching_templates" -> listOf("tipo", "dia_semana", "hora_inicio")
+    "preaching_notes" -> listOf("tipo", "ano", "mes")
     "settings" -> emptyList() // singleton: a linha e sempre a mesma
     else -> null
 }
@@ -387,6 +394,9 @@ class SyncService(
         "weekend_programs" -> row["titulo_discurso"].orEmpty()
         "midweek_programs" -> row["leitura_semanal"].orEmpty()
         "cleaning_assignments" -> "${row["ano"].orEmpty()}/${row["semana_iso"].orEmpty()}"
+        "preaching_spots", "preaching_groups" -> row["nome"].orEmpty()
+        "preaching_shifts" -> "${row["data"].orEmpty()} ${row["hora_inicio"].orEmpty()}".trim()
+        "preaching_notes" -> "${row["ano"].orEmpty()}/${row["mes"].orEmpty()}"
         else -> ""
     }.ifBlank { row["uuid"]?.take(8).orEmpty() }
 }

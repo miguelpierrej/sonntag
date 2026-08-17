@@ -7,6 +7,7 @@ import com.example.sonntag.ui.screens.cleaning.CleaningScreenContent
 import com.example.sonntag.ui.screens.dashboard.DashboardScreenContent
 import com.example.sonntag.ui.screens.members.MembersScreenContent
 import com.example.sonntag.ui.screens.midweek.MidweekProgramsScreenContent
+import com.example.sonntag.ui.screens.preaching.PreachingScreenContent
 import com.example.sonntag.ui.screens.settings.SettingsScreenContent
 import com.example.sonntag.ui.screens.weekend.WeekendProgramsScreenContent
 
@@ -55,6 +56,13 @@ data class CleaningScreen(val name: String = "Limpeza") : Screen {
     @Composable
     override fun Content() {
         CleaningScreenContent()
+    }
+}
+
+data class PreachingScreen(val name: String = "Pregação") : Screen {
+    @Composable
+    override fun Content() {
+        PreachingScreenContent()
     }
 }
 

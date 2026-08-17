@@ -132,6 +132,53 @@ data class AvSchedulePdfData(
     val labels: AvPdfStrings,
 )
 
+// ─── Pregacao (carrinhos e pregacao de campo) ────────────────────────────────
+
+/**
+ * Nome como cabe na celula do calendario: "Maria Victoria M.".
+ *
+ * A celula tem cerca de 70 pontos de largura; o nome inteiro nao entra e sairia
+ * cortado no meio ("Maria Victoria Mo..."), que nao serve para ninguem. A inicial do
+ * sobrenome basta para desempatar homonimos na pratica.
+ */
+fun nomeCurtoDeCalendario(nome: String, sobrenome: String): String {
+    val inicial = sobrenome.trim().firstOrNull()?.let { " $it." }.orEmpty()
+    return nome.trim() + inicial
+}
+
+/** Um turno como sai na celula do calendario. */
+data class PreachingShiftPdf(
+    val hora: String,
+    val ponto: String?,
+    val nomes: List<String>,
+    val nota: String?,
+)
+
+data class PreachingDayPdf(
+    val dia: Int,
+    val doMes: Boolean,
+    val turnos: List<PreachingShiftPdf>,
+)
+
+/** Uma linha do rodape do programa de pregacao. */
+data class PreachingGroupPdf(
+    val nome: String,
+    val dirigente: String?,
+    val local: String?,
+)
+
+data class PreachingProgramPdfData(
+    val congregacao: String,
+    val titulo: String,
+    val mesLabel: String,
+    val fileSlug: String,
+    /** Semanas de domingo a sabado, na mesma grade da tela. */
+    val semanas: List<List<PreachingDayPdf>>,
+    val grupos: List<PreachingGroupPdf>,
+    val observacao: String?,
+    val labels: PreachingPdfStrings,
+)
+
 interface PdfExportService {
     suspend fun exportMeetingProgram(data: MeetingProgramPdfData): Boolean
     suspend fun exportWeeklyProgram(data: WeeklyProgramPdfData): Boolean
@@ -144,6 +191,7 @@ interface PdfExportService {
     suspend fun exportMidweekProgram(data: MidweekProgramPdfData): Boolean
     suspend fun exportMidweekAssignments(data: MidweekAssignmentsPdfData): Boolean
     suspend fun exportAvSchedule(data: AvSchedulePdfData): Boolean
+    suspend fun exportPreachingProgram(data: PreachingProgramPdfData): Boolean
 }
 
 expect fun createPdfExportService(): PdfExportService

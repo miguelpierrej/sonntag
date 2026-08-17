@@ -5,13 +5,36 @@ import com.example.sonntag.pdf.MidweekPdfStrings
 import com.example.sonntag.pdf.MidweekProgramPdfData
 import com.example.sonntag.pdf.MidweekWeekPdf
 
-/** Programa de meio de semana (S-140): duas semanas por folha A4, lado a lado. */
-class MidweekProgramLayout(private val data: MidweekProgramPdfData) {
+/**
+ * Programa de meio de semana (S-140): duas semanas por folha A4, lado a lado.
+ *
+ * Segue o modelo impresso azul: titulo centralizado com a caixa da congregacao no
+ * canto, faixa da semana com o periodo a esquerda e a leitura a direita, e cada
+ * secao na sua cor (tesouros, ministerio, vida crista).
+ *
+ * Os tres icones das secoes sao opcionais: sem eles, o lugar do icone vira um
+ * quadrado na cor da secao.
+ *
+ * Os PNGs em `icons/secao-*.png` (resources no desktop, assets no Android) foram
+ * gerados a partir da fonte de icones `jw-icons-all` usada na Biblioteca on-line —
+ * glifos U+E720 (diamante), U+E898 (espiga) e U+E800 (ovelha, espelhada na
+ * horizontal, como o site tambem faz), em branco sobre a cor da secao.
+ */
+class MidweekProgramLayout(
+    private val data: MidweekProgramPdfData,
+    private val iconTesouros: ByteArray? = null,
+    private val iconMinisterio: ByteArray? = null,
+    private val iconVida: ByteArray? = null,
+) {
 
     private val marginLeft = 40f
     private val marginRight = 40f
     private val marginBottom = 40f
     private val gap = 24f
+
+    /** Caixa da congregacao, encostada na borda direita como no impresso. */
+    private val boxWidth = 172f
+    private val boxHeight = 116f
 
     fun draw(canvas: DocumentCanvas) {
         val contentWidth = canvas.pageWidth - marginLeft - marginRight
@@ -20,8 +43,7 @@ class MidweekProgramLayout(private val data: MidweekProgramPdfData) {
         val chunks = data.semanas.chunked(2).ifEmpty { listOf(emptyList()) }
         chunks.forEachIndexed { pageIndex, pair ->
             if (pageIndex > 0) canvas.newPage()
-            val headerBottom = drawHeader(canvas, contentWidth)
-            val colTop = headerBottom - 14f
+            val colTop = drawHeader(canvas)
 
             if (pair.size == 2) {
                 val dividerX = marginLeft + colWidth + gap / 2f
@@ -33,28 +55,37 @@ class MidweekProgramLayout(private val data: MidweekProgramPdfData) {
         }
     }
 
-    private fun drawHeader(canvas: DocumentCanvas, contentWidth: Float): Float {
-        val top = canvas.pageHeight - 40f
-        canvas.text(data.labels.headerTitle, marginLeft, top - 20f, TextStyle(23f, DocColors.Maroon, FontStyle.BOLD))
-        canvas.text(data.labels.headerSubtitle, marginLeft, top - 40f, TextStyle(15f, DocColors.Maroon))
-        canvas.text(data.labels.headerGuide, marginLeft, top - 54f, TextStyle(8f, DocColors.Muted, FontStyle.BOLD))
+    private fun drawHeader(canvas: DocumentCanvas): Float {
+        val top = canvas.pageHeight
+        val boxX = canvas.pageWidth - boxWidth
+        canvas.fillRect(boxX, top - 14f - boxHeight, boxWidth, boxHeight, DocColors.NavySoft)
 
-        // Caixa cinza com o nome da congregacao
-        val boxW = 175f
-        val boxH = 58f
-        val boxX = canvas.pageWidth - marginRight - boxW
-        val boxY = top - boxH
-        canvas.fillRect(boxX, boxY, boxW, boxH, DocColors.GrayBox)
+        // O titulo fica centralizado no espaco que sobra a esquerda da caixa.
+        val tituloArea = boxX - marginLeft
+        canvas.textCentered(
+            data.labels.headerTitle, marginLeft, tituloArea, top - 62f,
+            TextStyle(22f, DocColors.Navy, FontStyle.BOLD),
+        )
+        canvas.textCentered(
+            data.labels.headerSubtitle, marginLeft, tituloArea, top - 86f,
+            TextStyle(18f, DocColors.Navy),
+        )
+        canvas.textCentered(
+            data.labels.headerGuide, marginLeft, tituloArea, top - 101f,
+            TextStyle(8.5f, DocColors.Navy, FontStyle.BOLD),
+        )
 
-        val nameStyle = TextStyle(12f, DocColors.Maroon, FontStyle.BOLD)
-        canvas.wrapText(data.congregacao, nameStyle, boxW - 20f).take(2).forEachIndexed { i, ln ->
-            canvas.text(ln, boxX + 12f, boxY + boxH - 16f - i * 14f, nameStyle)
+        val labelStyle = TextStyle(9f, DocColors.NavyInk)
+        canvas.text(data.labels.congregacaoLabel, boxX + 14f, top - 44f, labelStyle)
+        val nameStyle = TextStyle(13f, DocColors.NavyInk, FontStyle.BOLD)
+        canvas.wrapText(data.congregacao, nameStyle, boxWidth - 28f).take(2).forEachIndexed { i, ln ->
+            canvas.text(ln, boxX + 14f, top - 62f - i * 15f, nameStyle)
         }
         data.subtitulo?.takeIf { it.isNotBlank() }?.let {
-            val style = TextStyle(9.5f, DocColors.Maroon)
-            canvas.text(canvas.fitText(it, style, boxW - 20f), boxX + 12f, boxY + 10f, style)
+            val style = TextStyle(8.5f, DocColors.NavyInk)
+            canvas.text(canvas.fitText(it, style, boxWidth - 28f), boxX + 14f, top - 14f - boxHeight + 12f, style)
         }
-        return canvas.pageHeight - 40f - 66f
+        return top - 14f - boxHeight - 16f
     }
 
     private fun drawWeek(
@@ -67,37 +98,42 @@ class MidweekProgramLayout(private val data: MidweekProgramPdfData) {
     ) {
         var y = yTop
 
+        // Faixa da semana: periodo a esquerda, leitura da semana a direita.
         val bandH = 20f
-        canvas.fillRect(x, y - bandH, colW, bandH, DocColors.Maroon)
-        val bandStyle = TextStyle(8.5f, DocColor.White, FontStyle.BOLD)
-        val band = listOf(wk.periodo, wk.leitura).filter { it.isNotBlank() }.joinToString("  ").uppercase()
-        canvas.text(canvas.fitText(band, bandStyle, colW - 12f), x + 7f, y - bandH + 6.5f, bandStyle)
+        canvas.fillRect(x, y - bandH, colW, bandH, DocColors.Navy)
+        val bandStyle = TextStyle(9f, DocColor.White, FontStyle.BOLD)
+        val baseline = y - bandH + 6.5f
+        canvas.text(canvas.fitText(wk.periodo.uppercase(), bandStyle, colW * 0.55f), x + 7f, baseline, bandStyle)
+        wk.leitura.takeIf { it.isNotBlank() }?.let {
+            val leitura = canvas.fitText(it.uppercase(), bandStyle, colW * 0.42f)
+            canvas.text(leitura, x + colW - 7f - canvas.measure(leitura, bandStyle), baseline, bandStyle)
+        }
         y -= bandH + 12f
 
         y = labelValue(canvas, labels.presidente, wk.presidente, x, y, colW)
         y = labelValue(canvas, labels.oracaoInicial, wk.oracaoInicial, x, y, colW)
         y -= 8f
 
-        y = sectionBar(canvas, DocColors.Teal, labels.tesouros1, labels.tesouros2, wk.canticoInicial, labels.cancion, x, y, colW)
-        y = part(canvas, wk.tesouros, labels.mins, x, y, colW)
-        y = part(canvas, wk.joias, labels.mins, x, y, colW)
-        y = part(canvas, wk.leituraBiblia, labels.mins, x, y, colW)
+        y = sectionBar(canvas, DocColors.Teal, iconTesouros, labels.tesouros1, labels.tesouros2, wk.canticoInicial, labels.cancion, x, y, colW)
+        y = part(canvas, wk.tesouros, labels.mins, DocColors.TealDark, x, y, colW)
+        y = part(canvas, wk.joias, labels.mins, DocColors.TealDark, x, y, colW)
+        y = part(canvas, wk.leituraBiblia, labels.mins, DocColors.TealDark, x, y, colW)
         y -= 8f
 
-        y = sectionBar(canvas, DocColors.Gold, labels.seamos1, labels.seamos2, null, labels.cancion, x, y, colW)
-        wk.ministerio.forEach { y = part(canvas, it, labels.mins, x, y, colW) }
+        y = sectionBar(canvas, DocColors.Gold, iconMinisterio, labels.seamos1, labels.seamos2, null, labels.cancion, x, y, colW)
+        wk.ministerio.forEach { y = part(canvas, it, labels.mins, DocColors.GoldDark, x, y, colW) }
         y -= 8f
 
-        y = sectionBar(canvas, DocColors.Maroon, labels.vida1, labels.vida2, wk.canticoMeio, labels.cancion, x, y, colW)
-        wk.vida.forEach { y = part(canvas, it, labels.mins, x, y, colW) }
+        y = sectionBar(canvas, DocColors.Red, iconVida, labels.vida1, labels.vida2, wk.canticoMeio, labels.cancion, x, y, colW)
+        wk.vida.forEach { y = part(canvas, it, labels.mins, DocColors.Red, x, y, colW) }
         y = studyPart(canvas, wk.estudo, labels, x, y, colW)
         y -= 10f
 
-        val conclStyle = TextStyle(8.5f, DocColors.Maroon, FontStyle.BOLD)
+        val conclStyle = TextStyle(8.5f, DocColors.Navy, FontStyle.BOLD)
         canvas.textCentered("${labels.conclusion} ${wk.canticoFinal ?: "___"}", x, colW, y, conclStyle)
         y -= 12f
         wk.oracaoFinal?.takeIf { it.isNotBlank() }?.let {
-            canvas.textCentered("${labels.oracaoFinal}: $it", x, colW, y, TextStyle(8.5f, DocColors.Ink, FontStyle.BOLD))
+            canvas.textCentered("${labels.oracaoFinal}: $it", x, colW, y, TextStyle(8.5f, DocColors.Navy, FontStyle.BOLD))
         }
     }
 
@@ -109,7 +145,7 @@ class MidweekProgramLayout(private val data: MidweekProgramPdfData) {
         y: Float,
         colW: Float,
     ): Float {
-        val labelStyle = TextStyle(8.5f, DocColors.Maroon, FontStyle.BOLD)
+        val labelStyle = TextStyle(8.5f, DocColors.Navy, FontStyle.BOLD)
         val valueStyle = TextStyle(8.5f, DocColors.Ink, FontStyle.BOLD)
         canvas.text(label, x, y - 9f, labelStyle)
         val lw = canvas.measure(label, labelStyle)
@@ -120,6 +156,7 @@ class MidweekProgramLayout(private val data: MidweekProgramPdfData) {
     private fun sectionBar(
         canvas: DocumentCanvas,
         color: DocColor,
+        icon: ByteArray?,
         line1: String,
         line2: String,
         cancion: String?,
@@ -128,16 +165,20 @@ class MidweekProgramLayout(private val data: MidweekProgramPdfData) {
         y: Float,
         colW: Float,
     ): Float {
-        val iconSize = 13f
-        canvas.fillRect(x, y - iconSize - 2f, iconSize, iconSize, color)
+        val iconSize = 22f
+        val iconY = y - iconSize + 1f
+        if (icon != null) {
+            canvas.image(icon, x, iconY, iconSize, iconSize)
+        } else {
+            canvas.fillRect(x, iconY, iconSize, iconSize, color)
+        }
         val tx = x + iconSize + 8f
         val style = TextStyle(9f, color, FontStyle.BOLD)
         canvas.text(line1, tx, y - 7f, style)
         canvas.text(line2, tx, y - 17f, style)
         if (!cancion.isNullOrBlank()) {
-            val songStyle = TextStyle(8.5f, color, FontStyle.BOLD)
             val ct = "$cancionLabel $cancion"
-            canvas.text(ct, x + colW - canvas.measure(ct, songStyle), y - 17f, songStyle)
+            canvas.text(ct, x + colW - canvas.measure(ct, style), y - 17f, style)
         }
         val underlineY = y - 23f
         canvas.line(x, underlineY, x + colW, underlineY, color, 1f)
@@ -148,11 +189,12 @@ class MidweekProgramLayout(private val data: MidweekProgramPdfData) {
         canvas: DocumentCanvas,
         part: MidweekPartPdf,
         mins: String,
+        color: DocColor,
         x: Float,
         y: Float,
         colW: Float,
     ): Float {
-        val titleStyle = TextStyle(8.5f, DocColors.Maroon, FontStyle.BOLD)
+        val titleStyle = TextStyle(8.5f, color, FontStyle.BOLD)
         val lineH = 11f
         val lines = canvas.wrapText("${part.numero}. ${part.titulo}", titleStyle, colW - 2f)
         lines.forEachIndexed { i, ln -> canvas.text(ln, x, y - 9f - i * lineH, titleStyle) }
@@ -173,7 +215,7 @@ class MidweekProgramLayout(private val data: MidweekProgramPdfData) {
             part.nome2?.takeIf { it.isNotBlank() },
         )
         if (names.isNotEmpty()) {
-            val nameStyle = TextStyle(8.5f, DocColors.Ink, FontStyle.BOLD)
+            val nameStyle = TextStyle(8.5f, DocColors.Ink)
             canvas.wrapText(names.joinToString(" / "), nameStyle, colW - 12f).forEach {
                 canvas.text(it, x + 10f, yy, nameStyle)
                 yy -= lineH
@@ -190,7 +232,7 @@ class MidweekProgramLayout(private val data: MidweekProgramPdfData) {
         y: Float,
         colW: Float,
     ): Float {
-        val titleStyle = TextStyle(8.5f, DocColors.Maroon, FontStyle.BOLD)
+        val titleStyle = TextStyle(8.5f, DocColors.Red, FontStyle.BOLD)
         val lineH = 11f
         val lines = canvas.wrapText("${part.numero}. ${part.titulo}", titleStyle, colW - 2f)
         lines.forEachIndexed { i, ln -> canvas.text(ln, x, y - 9f - i * lineH, titleStyle) }
@@ -212,18 +254,20 @@ class MidweekProgramLayout(private val data: MidweekProgramPdfData) {
         val rowH = 15f
         val half = tableW / 2f
 
-        canvas.fillRect(tx, ty - rowH, tableW, rowH, DocColors.TableHeader)
-        val headStyle = TextStyle(8f, DocColors.Maroon, FontStyle.BOLD)
+        canvas.fillRect(tx, ty - rowH, tableW, rowH, DocColors.Red)
+        val headStyle = TextStyle(8f, DocColor.White, FontStyle.BOLD)
         canvas.textCentered(labels.conductor, tx, half, ty - rowH + 4.5f, headStyle)
         canvas.textCentered(labels.lector, tx + half, half, ty - rowH + 4.5f, headStyle)
         ty -= rowH
 
-        canvas.strokeRect(tx, ty - rowH, tableW, rowH, DocColors.Border, 0.7f)
-        canvas.line(tx + half, ty, tx + half, ty - rowH, DocColors.Border, 0.7f)
+        canvas.strokeRect(tx, ty - rowH, tableW, rowH, DocColors.Red, 0.7f)
+        canvas.line(tx + half, ty, tx + half, ty - rowH, DocColors.Red, 0.7f)
 
-        val cellStyle = TextStyle(8f, DocColors.Ink, FontStyle.BOLD)
-        canvas.textCentered(canvas.fitText(part.nome1.orEmpty(), cellStyle, half - 6f), tx, half, ty - 3f, cellStyle)
-        canvas.textCentered(canvas.fitText(part.nome2.orEmpty(), cellStyle, half - 6f), tx + half, half, ty - 3f, cellStyle)
+        // A linha de base fica dentro da celula, nao colada na faixa de cima.
+        val cellStyle = TextStyle(8f, DocColors.Ink)
+        val cellBaseline = ty - rowH + 4.5f
+        canvas.textCentered(canvas.fitText(part.nome1.orEmpty(), cellStyle, half - 6f), tx, half, cellBaseline, cellStyle)
+        canvas.textCentered(canvas.fitText(part.nome2.orEmpty(), cellStyle, half - 6f), tx + half, half, cellBaseline, cellStyle)
         return ty - rowH - 6f
     }
 }

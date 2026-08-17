@@ -12,6 +12,10 @@ object DatabaseFactory {
 
     fun createDatabase(driver: SqlDriver): SonntagDatabase {
         val hoje = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date.toString()
+        // As tabelas novas vem antes de tudo: quem ja tinha o app instalado nao
+        // recebeu o `Schema.create`, e sem elas as telas novas nao abrem.
+        runCatching { SchemaUpgrade.run(driver) }
+            .onFailure { println("[SchemaUpgrade] ERRO: ${it::class.simpleName}: ${it.message}") }
         // Antes de qualquer tela ler a agenda, com o schema ja no lugar. Um reparo que
         // falha nao pode impedir o app de abrir, mas tem de aparecer no log.
         runCatching { DataRepair.run(driver, hoje) }

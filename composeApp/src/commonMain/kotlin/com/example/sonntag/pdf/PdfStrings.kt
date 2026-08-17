@@ -113,6 +113,7 @@ fun cleaningPdfStrings(lang: AppLanguage): CleaningPdfStrings = when (lang) {
 
 /** Rotulos fixos do formulario S-140 (por idioma). */
 data class MidweekPdfStrings(
+    val congregacaoLabel: String,
     val headerTitle: String,
     val headerSubtitle: String,
     val headerGuide: String,
@@ -153,8 +154,20 @@ data class AssignmentPdfStrings(
     val dialogTitle: String,
 )
 
-/** Rotulos fixos da folha de audio/video e acomodadores (por idioma). */
+/**
+ * Rotulos fixos da folha de audio/video e acomodadores (por idioma).
+ *
+ * [linhas] e a coluna de rotulos de cada reuniao, na ordem em que aparece no
+ * documento — e tambem a ordem em que os nomes chegam em [AvScheduleLine].
+ */
+/**
+ * Rotulos fixos da folha de audio/video e acomodadores (por idioma).
+ *
+ * O cabecalho e o cartao de titulo comum aos documentos; o corpo tem uma coluna
+ * por grupo de designacoes.
+ */
 data class AvPdfStrings(
+    val common: CommonPdfStrings,
     val title: String,
     val audioVideo: String,
     val plataforma: String,
@@ -170,7 +183,8 @@ data class AvPdfStrings(
 
 fun avPdfStrings(lang: AppLanguage): AvPdfStrings = when (lang) {
     AppLanguage.ES -> AvPdfStrings(
-        title = "Audio, video, y acomodadores",
+        common = commonPdfStrings(lang),
+        title = "Audio, video y acomodadores",
         audioVideo = "Audio y video",
         plataforma = "Plataforma",
         microfones = "Micrófonos",
@@ -183,6 +197,7 @@ fun avPdfStrings(lang: AppLanguage): AvPdfStrings = when (lang) {
         dialogTitle = "Guardar como",
     )
     AppLanguage.PT_BR -> AvPdfStrings(
+        common = commonPdfStrings(lang),
         title = "Áudio, vídeo e acomodadores",
         audioVideo = "Áudio e vídeo",
         plataforma = "Plataforma",
@@ -197,8 +212,45 @@ fun avPdfStrings(lang: AppLanguage): AvPdfStrings = when (lang) {
     )
 }
 
+/** Rotulos do calendario de pregacao (carrinhos e pregacao de campo). */
+data class PreachingPdfStrings(
+    val common: CommonPdfStrings,
+    val tituloCarritos: String,
+    val tituloPredicacion: String,
+    /** Domingo primeiro, como a grade do impresso. */
+    val diasDaSemana: List<String>,
+    val grupos: String,
+    val dirigente: String,
+    val vazio: String,
+    val dialogTitle: String,
+)
+
+fun preachingPdfStrings(lang: AppLanguage): PreachingPdfStrings = when (lang) {
+    AppLanguage.ES -> PreachingPdfStrings(
+        common = commonPdfStrings(lang),
+        tituloCarritos = "Programación de los Carritos",
+        tituloPredicacion = "Programación de Predicación",
+        diasDaSemana = listOf("Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"),
+        grupos = "Grupos de predicación",
+        dirigente = "Conductor",
+        vazio = "Ningún turno en este mes.",
+        dialogTitle = "Guardar como",
+    )
+    AppLanguage.PT_BR -> PreachingPdfStrings(
+        common = commonPdfStrings(lang),
+        tituloCarritos = "Programação dos Carrinhos",
+        tituloPredicacion = "Programação da Pregação",
+        diasDaSemana = listOf("Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"),
+        grupos = "Grupos de pregação",
+        dirigente = "Dirigente",
+        vazio = "Nenhum turno neste mês.",
+        dialogTitle = "Salvar como",
+    )
+}
+
 fun midweekPdfStrings(lang: AppLanguage): MidweekPdfStrings = when (lang) {
     AppLanguage.ES -> MidweekPdfStrings(
+        congregacaoLabel = "Congregación",
         headerTitle = "Reunión de entre semana",
         headerSubtitle = "Vida y Ministerio Cristianos",
         headerGuide = "GUÍA DE ACTIVIDADES PARA LA REUNIÓN",
@@ -223,6 +275,7 @@ fun midweekPdfStrings(lang: AppLanguage): MidweekPdfStrings = when (lang) {
         dialogTitle = "Guardar como",
     )
     AppLanguage.PT_BR -> MidweekPdfStrings(
+        congregacaoLabel = "Congregação",
         headerTitle = "Reunião de meio de semana",
         headerSubtitle = "Vida e Ministério Cristão",
         headerGuide = "GUIA DE ATIVIDADES PARA A REUNIÃO",
