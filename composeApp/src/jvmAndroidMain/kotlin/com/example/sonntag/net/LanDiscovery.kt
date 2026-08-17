@@ -10,6 +10,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.net.DatagramPacket
+import java.net.DatagramSocket
+import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.MulticastSocket
@@ -25,6 +27,12 @@ import java.net.NetworkInterface
  * Preferimos multicast simples a mDNS para nao arrastar dependencia nova — o que se
  * anuncia aqui e uma linha de texto, nao um servico DNS completo.
  */
+/** Nomes de interface que costumam ser ponte virtual, e nao a rede de verdade. */
+private val VIRTUAIS = listOf("docker", "br-", "veth", "virbr", "tun", "tap")
+
+/** So para descobrir a rota de saida; nenhum pacote e enviado para ca. */
+private const val HOST_DE_ROTA = "8.8.8.8"
+
 class LanDiscovery(
     private val deviceId: String,
     private val nome: () -> String,
@@ -124,11 +132,34 @@ class LanDiscovery(
      * aparecem antes na lista e fazem o joinGroup falhar com "Network interface not
      * configured for IPv4".
      */
+    /**
+     * A interface que realmente chega na rede local.
+     *
+     * Pegar a primeira que serve multicast escolhe, numa maquina com Docker ou VPN,
+     * uma ponte virtual que nao leva a lugar nenhum: o anuncio sai e ninguem ve.
+     * Perguntamos ao sistema por onde ele sairia para a rede e usamos aquela.
+     */
     private fun interfaceParaMulticast(): NetworkInterface? =
-        runCatching {
-            NetworkInterface.getNetworkInterfaces().toList().firstOrNull { iface ->
+        interfaceDaRota() ?: primeiraUtil()
+
+    private fun interfaceDaRota(): NetworkInterface? = runCatching {
+        DatagramSocket().use { sonda ->
+            // "Conectar" em UDP nao envia pacote nenhum: so resolve a rota de saida.
+            sonda.connect(InetAddress.getByName(HOST_DE_ROTA), 53)
+            NetworkInterface.getByInetAddress(sonda.localAddress)
+        }?.takeIf { it.isUp && !it.isLoopback && it.supportsMulticast() }
+    }.getOrNull()
+
+    /** Sem rota conhecida, a primeira util — pontes virtuais por ultimo. */
+    private fun primeiraUtil(): NetworkInterface? = runCatching {
+        NetworkInterface.getNetworkInterfaces().toList()
+            .filter { iface ->
                 iface.isUp && !iface.isLoopback && iface.supportsMulticast() &&
-                    iface.inetAddresses.toList().any { it is java.net.Inet4Address }
+                    iface.inetAddresses.toList().any { it is Inet4Address }
             }
-        }.getOrNull()
+            .minByOrNull { if (ehVirtual(it.name)) 1 else 0 }
+    }.getOrNull()
+
+    private fun ehVirtual(nome: String): Boolean =
+        VIRTUAIS.any { nome.startsWith(it) }
 }

@@ -22,9 +22,13 @@ class MeetingGenerator(
         val startDate = today.plus(DatePeriod(days = 1))
         val endDate = today.plus(DatePeriod(months = 12))
 
+        // A hora fica fora da chave. Ela e o que o usuario edita e o que difere entre
+        // duas instalacoes: com ela aqui, uma reuniao que chegou de outro aparelho as
+        // 19:30 nao seria reconhecida e o gerador criaria uma segunda no mesmo dia,
+        // as 19:00 — a duplicacao que a agenda vinha sofrendo a cada sincronizacao.
         val existing = meetingsRepository
             .getByDateRangeOnce(startDate.toString(), endDate.toString())
-            .map { "${it.data_}|${it.hora}|${it.tipo}" }
+            .map { "${it.data_}|${it.tipo}" }
             .toMutableSet()
 
         var cursor = startDate
@@ -34,7 +38,7 @@ class MeetingGenerator(
             val tipo = if (isoDay >= 6) "WEEKEND" else "WEEKDAY"
 
             dayDefs.forEach { def ->
-                val key = "${cursor}|${def.hora}|$tipo"
+                val key = "${cursor}|$tipo"
                 if (!existing.contains(key)) {
                     meetingsRepository.insert(cursor.toString(), def.hora, tipo)
                     existing.add(key)

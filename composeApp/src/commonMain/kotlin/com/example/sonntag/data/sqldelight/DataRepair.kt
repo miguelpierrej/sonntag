@@ -3,6 +3,8 @@ package com.example.sonntag.data.sqldelight
 import app.cash.sqldelight.db.QueryResult
 import app.cash.sqldelight.db.SqlCursor
 import app.cash.sqldelight.db.SqlDriver
+import com.example.sonntag.sync.SyncSection
+import com.example.sonntag.sync.naturalKey
 
 /**
  * Conserta duplicacoes de agenda deixadas por sincronizacoes antigas.
@@ -25,6 +27,36 @@ object DataRepair {
     fun run(driver: SqlDriver, hoje: String) {
         fundeReunioesDuplicadas(driver)
         fundeDiasDuplicados(driver, hoje)
+        limpaDuplicatasExcluidas(driver)
+    }
+
+    /**
+     * Apaga de vez as duplicatas que a fusao marcou como excluidas.
+     *
+     * Marcar nao basta: a linha excluida continua no pacote e, do outro lado, a chave
+     * natural a faz casar com a linha **viva** de la — a sincronizacao entao apaga uma
+     * reuniao com programa preenchido. Sem duplicata no banco, nada disso viaja.
+     *
+     * So sai a linha excluida que tem uma irma viva com a mesma chave natural; uma
+     * exclusao de verdade (sem irma) fica, porque precisa chegar ao outro aparelho.
+     */
+    private fun limpaDuplicatasExcluidas(driver: SqlDriver) {
+        SyncSection.entries.flatMap { it.tables }.distinct().forEach { tabela ->
+            val chave = naturalKey(tabela)?.takeIf { it.isNotEmpty() } ?: return@forEach
+            val mesmaChave = chave.joinToString(" AND ") { "viva.$it IS morta.$it" }
+            driver.roda(
+                """
+                DELETE FROM $tabela WHERE rowid IN (
+                    SELECT morta.rowid FROM $tabela morta
+                    WHERE COALESCE(morta.deleted, 0) = 1
+                      AND EXISTS (
+                          SELECT 1 FROM $tabela viva
+                          WHERE COALESCE(viva.deleted, 0) = 0 AND $mesmaChave
+                      )
+                )
+                """,
+            )
+        }
     }
 
     /**

@@ -40,6 +40,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,7 +52,10 @@ import androidx.compose.ui.unit.dp
 import com.example.sonntag.i18n.tr
 import com.example.sonntag.net.LanPeer
 import com.example.sonntag.sync.ChangeKind
+import com.example.sonntag.sync.ImportCategory
+import com.example.sonntag.sync.ImportPreview
 import com.example.sonntag.sync.IncomingPackage
+import com.example.sonntag.sync.category
 import com.example.sonntag.sync.IncomingRow
 import com.example.sonntag.sync.SyncSection
 import com.example.sonntag.sync.requires
@@ -95,12 +100,10 @@ fun DataTransferScreenContent() {
 
     state.preview?.let { preview ->
         ImportPreviewDialog(
-            novos = preview.novos,
-            atualizacoes = preview.atualizacoes,
-            ignorados = preview.ignorados,
-            divergencias = preview.divergencias,
-            aceitos = state.acceptedConflicts,
-            onToggle = viewModel::toggleConflict,
+            preview = preview,
+            aceitos = state.acceptedRows,
+            onToggleRow = viewModel::toggleRow,
+            onToggleGroup = viewModel::toggleGroup,
             onConfirm = viewModel::applyImport,
             onCancel = viewModel::cancelImport,
         )
@@ -402,68 +405,158 @@ private fun PasswordDialog(
 
 @Composable
 private fun ImportPreviewDialog(
-    novos: Int,
-    atualizacoes: Int,
-    ignorados: Int,
-    divergencias: List<IncomingRow>,
+    preview: ImportPreview,
     aceitos: Set<String>,
-    onToggle: (IncomingRow, Boolean) -> Unit,
+    onToggleRow: (IncomingRow, Boolean) -> Unit,
+    onToggleGroup: (List<IncomingRow>, Boolean) -> Unit,
     onConfirm: () -> Unit,
     onCancel: () -> Unit,
 ) {
+    // Um grupo por bloco e categoria: com centenas de linhas, decidir uma a uma seria
+    // inviavel — quem quiser desce ao detalhe abrindo o grupo.
+    val grupos = remember(preview) {
+        preview.rows.mapNotNull { row ->
+            val categoria = row.category() ?: return@mapNotNull null
+            val secao = SyncSection.entries.firstOrNull { row.table in it.tables }
+            Triple(secao, categoria, row)
+        }
+            .groupBy { it.first to it.second }
+            .toList()
+            .sortedWith(
+                compareBy(
+                    { SyncSection.entries.indexOfFirst { s -> s == it.first.first } },
+                    { it.first.second.ordinal },
+                ),
+            )
+            .map { (chave, linhas) -> ImportGroup(chave.first, chave.second, linhas.map { it.third }) }
+    }
+    val abertos = remember { mutableStateOf(emptySet<String>()) }
+    val total = aceitos.count { uuid -> preview.rows.any { it.uuid == uuid } }
+
     AlertDialog(
         onDismissRequest = onCancel,
-        confirmButton = { TextButton(onClick = onConfirm) { Text(tr("Aplicar")) } },
+        confirmButton = {
+            TextButton(onClick = onConfirm, enabled = total > 0) {
+                Text(tr("Aplicar {0}", total))
+            }
+        },
         dismissButton = { TextButton(onClick = onCancel) { Text(tr("Cancelar")) } },
         title = { Text(tr("Conferir antes de aplicar")) },
         text = {
             Column(modifier = Modifier.widthIn(max = 560.dp)) {
-                Text(tr("{0} registros novos", novos), style = MaterialTheme.typography.bodyMedium)
-                Text(tr("{0} atualizações", atualizacoes), style = MaterialTheme.typography.bodyMedium)
-                if (ignorados > 0) {
-                    Text(
-                        tr("{0} ignorados por referência ausente", ignorados),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                if (divergencias.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        tr("Estes registros mudaram dos dois lados. Marque os que devem vir do arquivo; os demais mantêm o que está aqui."),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    LazyColumn(modifier = Modifier.heightIn(max = 260.dp)) {
-                        items(divergencias, key = { it.uuid }) { row ->
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Checkbox(
-                                    checked = row.uuid in aceitos,
-                                    onCheckedChange = { onToggle(row, it) },
-                                )
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        row.description,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                    Text(
-                                        tr("aqui: {0} · arquivo: {1}", row.localUpdatedAt.orEmpty(), row.remoteUpdatedAt.orEmpty()),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
+                Text(
+                    tr("Só os registros novos vêm marcados. Atualizações e exclusões mudam o que já existe aqui — marque o que quiser aceitar."),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                LazyColumn(modifier = Modifier.heightIn(max = 380.dp)) {
+                    grupos.forEach { grupo ->
+                        item(key = grupo.chave) {
+                            GroupHeader(
+                                grupo = grupo,
+                                aceitos = aceitos,
+                                aberto = grupo.chave in abertos.value,
+                                onToggle = { onToggleGroup(grupo.rows, it) },
+                                onExpand = {
+                                    abertos.value = if (grupo.chave in abertos.value) {
+                                        abertos.value - grupo.chave
+                                    } else {
+                                        abertos.value + grupo.chave
+                                    }
+                                },
+                            )
+                        }
+                        if (grupo.chave in abertos.value) {
+                            items(grupo.rows, key = { it.uuid }) { row ->
+                                RowLine(row = row, aceito = row.uuid in aceitos, onToggle = onToggleRow)
                             }
                         }
                     }
                 }
+
+                if (preview.ignorados > 0) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        tr("{0} ignorados: referência ausente ou duplicata já apagada aqui", preview.ignorados),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         },
     )
+}
+
+/** Um bloco e uma categoria de mudanca, com as linhas que caem ali. */
+private data class ImportGroup(
+    val secao: SyncSection?,
+    val categoria: ImportCategory,
+    val rows: List<IncomingRow>,
+) {
+    val chave: String get() = "${secao?.id ?: "outros"}/${categoria.name}"
+}
+
+@Composable
+private fun GroupHeader(
+    grupo: ImportGroup,
+    aceitos: Set<String>,
+    aberto: Boolean,
+    onToggle: (Boolean) -> Unit,
+    onExpand: () -> Unit,
+) {
+    val marcadas = grupo.rows.count { it.uuid in aceitos }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Checkbox(
+            checked = marcadas == grupo.rows.size,
+            onCheckedChange = onToggle,
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                "${tr(grupo.secao?.label ?: "Outros")} · ${tr(categoriaLabel(grupo.categoria), grupo.rows.size)}",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            if (marcadas in 1 until grupo.rows.size) {
+                Text(
+                    tr("{0} de {1} marcados", marcadas, grupo.rows.size),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        TextButton(onClick = onExpand) { Text(if (aberto) tr("Fechar") else tr("Revisar")) }
+    }
+}
+
+@Composable
+private fun RowLine(row: IncomingRow, aceito: Boolean, onToggle: (IncomingRow, Boolean) -> Unit) {
+    Row(
+        modifier = Modifier.padding(start = 24.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Checkbox(checked = aceito, onCheckedChange = { onToggle(row, it) })
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                row.description,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                tr("aqui: {0} · arquivo: {1}", row.localUpdatedAt.orEmpty(), row.remoteUpdatedAt.orEmpty()),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+private fun categoriaLabel(categoria: ImportCategory): String = when (categoria) {
+    ImportCategory.NOVOS -> "{0} novos"
+    ImportCategory.ATUALIZACOES -> "{0} atualizações"
+    ImportCategory.EXCLUSOES -> "{0} exclusões"
+    ImportCategory.DIVERGENCIAS -> "{0} divergências"
 }
 
 @Composable

@@ -275,6 +275,35 @@ tasks.register<JavaExec>("makePackage") {
     )
 }
 
+tasks.register<JavaExec>("simulateSync") {
+    val jvmMain = kotlin.jvm().compilations.getByName("main")
+    dependsOn(jvmMain.compileTaskProvider)
+    classpath = jvmMain.output.allOutputs + jvmMain.runtimeDependencyFiles
+    mainClass.set("com.example.sonntag.tools.SimulateSyncKt")
+    args(
+        System.getenv("DE") ?: "",
+        System.getenv("PARA") ?: "",
+        System.getenv("TABELAS") ?: "meeting_days,meetings",
+        System.getenv("APLICAR") ?: "nao",
+    )
+}
+
+tasks.register<JavaExec>("checkGenerator") {
+    val jvmMain = kotlin.jvm().compilations.getByName("main")
+    dependsOn(jvmMain.compileTaskProvider)
+    classpath = jvmMain.output.allOutputs + jvmMain.runtimeDependencyFiles
+    mainClass.set("com.example.sonntag.tools.CheckGeneratorKt")
+    args(System.getenv("DB") ?: "/tmp/copia.db")
+}
+
+tasks.register<JavaExec>("lanHost") {
+    val jvmMain = kotlin.jvm().compilations.getByName("main")
+    dependsOn(jvmMain.compileTaskProvider)
+    classpath = jvmMain.output.allOutputs + jvmMain.runtimeDependencyFiles
+    mainClass.set("com.example.sonntag.tools.LanHostKt")
+    args(System.getenv("DB") ?: "/tmp/copia.db", System.getenv("SEGUNDOS") ?: "180")
+}
+
 tasks.register<JavaExec>("repairDb") {
     val jvmMain = kotlin.jvm().compilations.getByName("main")
     dependsOn(jvmMain.compileTaskProvider)

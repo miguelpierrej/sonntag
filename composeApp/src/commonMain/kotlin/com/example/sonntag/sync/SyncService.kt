@@ -55,6 +55,22 @@ internal fun naturalKey(table: String): List<String>? = when (table) {
     else -> null
 }
 
+/**
+ * Como a mudanca aparece na revisao. Nasce de [ChangeKind], mas separa o que **apaga**
+ * do que so atualiza: era a exclusao, disfarcada de atualizacao, que sumia com
+ * reunioes sem o usuario perceber.
+ */
+enum class ImportCategory { NOVOS, ATUALIZACOES, EXCLUSOES, DIVERGENCIAS }
+
+/** Categoria de uma linha que chegou. Null quando nada ha a fazer com ela. */
+fun IncomingRow.category(): ImportCategory? = when {
+    kind == ChangeKind.IGNORADO || kind == ChangeKind.IGUAL -> null
+    values["deleted"] == "1" -> ImportCategory.EXCLUSOES
+    kind == ChangeKind.NOVO -> ImportCategory.NOVOS
+    kind == ChangeKind.ATUALIZA -> ImportCategory.ATUALIZACOES
+    else -> ImportCategory.DIVERGENCIAS
+}
+
 /** O que a importacao fara com uma linha. */
 enum class ChangeKind {
     NOVO,
@@ -105,6 +121,10 @@ data class ImportPreview(
     val atualizacoes: Int get() = rows.count { it.kind == ChangeKind.ATUALIZA }
     val divergencias: List<IncomingRow> get() = rows.filter { it.kind == ChangeKind.DIVERGE }
     val ignorados: Int get() = rows.count { it.kind == ChangeKind.IGNORADO }
+
+    /** Uuids que ja vem marcados: o que so acrescenta, e nunca destroi. */
+    val aceitasPorPadrao: Set<String>
+        get() = rows.filter { it.category() == ImportCategory.NOVOS }.map { it.uuid }.toSet()
 }
 
 class SyncService(
@@ -126,8 +146,9 @@ class SyncService(
         sections: List<SyncSection>,
         password: String?,
         since: String? = null,
+        skipTables: Set<String> = emptySet(),
     ): ByteArray {
-        val tabelas = sections.flatMap { it.tables }.distinct()
+        val tabelas = sections.flatMap { it.tables }.distinct() - skipTables
 
         // Tudo lido primeiro: o recorte precisa poder buscar as linhas referenciadas
         // que nao mudaram, mas sem as quais as que mudaram nao fazem sentido.
@@ -267,8 +288,14 @@ class SyncService(
                 val referenciaQuebrada = referencias.any { (column, disponiveis) ->
                     column in obrigatorias && row[column].let { it == null || it !in disponiveis }
                 }
+                val excluidaChegando = row["deleted"] == "1"
                 val kind = when {
                     referenciaQuebrada -> ChangeKind.IGNORADO
+                    // Exclusao que casou pela chave natural, e nao pelo uuid: do outro
+                    // lado ela e a duplicata que morreu; aqui ela e a linha que ficou
+                    // viva. Aplicar apagaria justamente a sobrevivente — com o
+                    // programa preenchido dentro dela.
+                    excluidaChegando && uuidLocal != null -> ChangeKind.IGNORADO
                     local == null -> ChangeKind.NOVO
                     // Quando o par veio da chave natural, os uuids sao diferentes por
                     // definicao — comparar por eles transformaria toda a agenda em
@@ -315,15 +342,13 @@ class SyncService(
      * usuario decidiu **nao** aplicar ainda assim diz a que linha local o uuid que
      * chegou corresponde — sem isso, um programa nao acha a sua reuniao.
      */
-    fun apply(preview: ImportPreview, divergenciasAceitas: Set<String> = emptySet()): Int {
+    fun apply(preview: ImportPreview, aceitas: Set<String>): Int {
         val apelido = preview.aliases
 
+        // Grava exatamente o que foi aceito. Antes, novos e atualizacoes entravam
+        // sozinhos e so a divergencia era escolhida — o que sobrescrevia sem pedir.
         val aGravar = preview.rows.filter {
-            when (it.kind) {
-                ChangeKind.NOVO, ChangeKind.ATUALIZA -> true
-                ChangeKind.DIVERGE -> it.uuid in divergenciasAceitas
-                else -> false
-            }
+            it.kind != ChangeKind.IGNORADO && it.uuid in aceitas
         }
 
         var aplicadas = 0

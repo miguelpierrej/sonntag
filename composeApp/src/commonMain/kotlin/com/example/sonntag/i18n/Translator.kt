@@ -434,6 +434,20 @@ object EsTranslations {
         "Sex" to "Vie",
         "Sáb" to "Sáb",
 
+        // Revisão da importação
+        "Só os registros novos vêm marcados. Atualizações e exclusões mudam o que já existe aqui — marque o que quiser aceitar." to
+            "Solo los registros nuevos vienen marcados. Las actualizaciones y las eliminaciones cambian lo que ya existe aquí — marque lo que quiera aceptar.",
+        "Aplicar {0}" to "Aplicar {0}",
+        "{0} novos" to "{0} nuevos",
+        "{0} exclusões" to "{0} eliminaciones",
+        "{0} divergências" to "{0} divergencias",
+        "{0} de {1} marcados" to "{0} de {1} marcados",
+        "Revisar" to "Revisar",
+        "Fechar" to "Cerrar",
+        "Outros" to "Otros",
+        "{0} ignorados: referência ausente ou duplicata já apagada aqui" to
+            "{0} ignorados: referencia ausente o duplicado ya borrado aquí",
+
         // Comuns de reunião
         "Selecione uma reunião para editar (meio de semana)" to "Seleccione una reunión (entre semana)",
     )

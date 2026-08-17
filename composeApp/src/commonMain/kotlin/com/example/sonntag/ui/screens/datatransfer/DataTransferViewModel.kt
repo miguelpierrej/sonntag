@@ -43,7 +43,8 @@ data class DataTransferUiState(
     val importPassword: String = "",
     val passwordError: Boolean = false,
     /** Divergencias que o usuario decidiu aceitar do arquivo. */
-    val acceptedConflicts: Set<String> = emptySet(),
+    /** Uuids marcados para gravar; comeca com os novos, que nada destroem. */
+    val acceptedRows: Set<String> = emptySet(),
     // Rede local
     val lanVisible: Boolean = false,
     val myCode: String = "",
@@ -73,6 +74,15 @@ class DataTransferViewModel(
     /** Todas as secoes: numa troca pela rede nao faz sentido escolher parte. */
     private val todasSecoes = SyncSection.entries.toList()
 
+    /**
+     * Os dias e horarios de reuniao nao viajam pela rede.
+     *
+     * Cada instalacao tem os seus: quando um aparelho marca terca as 19:30 e o outro as
+     * 20:00, aceitar o do vizinho regera a agenda inteira no horario errado. No arquivo
+     * exportado eles continuam, porque ali servem para montar uma instalacao nova.
+     */
+    private val foraDaRede = setOf("meeting_days")
+
     private val lan: LanSync by lazy {
         createLanSync(
             LanSyncConfig(
@@ -81,7 +91,9 @@ class DataTransferViewModel(
                     settingsRepository.getSettingsOnce()?.nome?.takeIf { it.isNotBlank() }
                         ?: localeController.translator("Aparelho")
                 },
-                buildPackage = { since -> syncService.buildPackage(todasSecoes, null, since) },
+                buildPackage = { since ->
+                    syncService.buildPackage(todasSecoes, null, since, skipTables = foraDaRede)
+                },
                 lastSyncWith = { peersRepository.lastSyncAt(it) },
                 onPackageReceived = { peerId, peerNome, bytes -> receberDaRede(peerId, peerNome, bytes) },
             ),
@@ -196,7 +208,7 @@ class DataTransferViewModel(
                 _uiState.value = _uiState.value.copy(
                     syncingWith = null,
                     preview = preview,
-                    acceptedConflicts = emptySet(),
+                    acceptedRows = preview?.aceitasPorPadrao.orEmpty(),
                     message = if (preview != null && preview.rows.isEmpty()) {
                         t("Nada novo de {0}.", peer.nome)
                     } else null,
@@ -233,7 +245,7 @@ class DataTransferViewModel(
         peersRepository.remember(peerId, peerNome, stamp.now())
         _uiState.value = _uiState.value.copy(
             preview = preview.takeIf { it.rows.isNotEmpty() },
-            acceptedConflicts = emptySet(),
+            acceptedRows = preview.aceitasPorPadrao,
             message = if (preview.rows.isEmpty()) {
                 localeController.translator("Nada novo de {0}.", peerNome)
             } else null,
@@ -336,22 +348,33 @@ class DataTransferViewModel(
             askPassword = false,
             pendingBytes = null,
             preview = preview,
-            // Por padrao, divergencia nenhuma e aceita: o que esta aqui prevalece.
-            acceptedConflicts = emptySet(),
+            // So o que acrescenta vem marcado; o que sobrescreve ou apaga espera
+            // uma decisao.
+            acceptedRows = preview.aceitasPorPadrao,
         )
     }
 
-    fun toggleConflict(row: IncomingRow, accept: Boolean) {
-        val current = _uiState.value.acceptedConflicts
+    /** Marca ou desmarca uma linha. */
+    fun toggleRow(row: IncomingRow, accept: Boolean) {
+        val atual = _uiState.value.acceptedRows
         _uiState.value = _uiState.value.copy(
-            acceptedConflicts = if (accept) current + row.uuid else current - row.uuid,
+            acceptedRows = if (accept) atual + row.uuid else atual - row.uuid,
+        )
+    }
+
+    /** Marca ou desmarca um grupo inteiro (um bloco e uma categoria). */
+    fun toggleGroup(rows: List<IncomingRow>, accept: Boolean) {
+        val atual = _uiState.value.acceptedRows
+        val uuids = rows.map { it.uuid }
+        _uiState.value = _uiState.value.copy(
+            acceptedRows = if (accept) atual + uuids else atual - uuids.toSet(),
         )
     }
 
     fun cancelImport() {
         _uiState.value = _uiState.value.copy(
             preview = null, pendingBytes = null, askPassword = false,
-            importPassword = "", passwordError = false, acceptedConflicts = emptySet(),
+            importPassword = "", passwordError = false, acceptedRows = emptySet(),
         )
     }
 
@@ -362,11 +385,11 @@ class DataTransferViewModel(
             _uiState.value = state.copy(isBusy = true)
             val t = localeController.translator
             try {
-                val applied = syncService.apply(preview, state.acceptedConflicts)
+                val applied = syncService.apply(preview, state.acceptedRows)
                 _uiState.value = _uiState.value.copy(
                     isBusy = false,
                     preview = null,
-                    acceptedConflicts = emptySet(),
+                    acceptedRows = emptySet(),
                     message = t("Importação concluída: {0} registros aplicados.", applied),
                 )
             } catch (e: Exception) {
