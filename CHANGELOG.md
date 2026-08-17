@@ -8,6 +8,67 @@ versionamento segue o [Semantic Versioning](https://semver.org/lang/pt-BR/).
 O workflow de release lê a seção da versão que está sendo fechada e usa o conteúdo
 como corpo do GitHub Release — o cabeçalho precisa ser `## [x.y.z] - AAAA-MM-DD`.
 
+## [1.0.6] - 2026-08-17
+
+### Adicionado
+- Programa de pregação, em Programações › Pregação. Uma tela só, com os dois
+  calendários — carrinhos e pregação de campo — e os cadastros de pontos e de grupos.
+  Cada dia recebe turnos com horário, ponto e até quatro designados, mais um destaque
+  em vermelho para avisos como "Todos os grupos no Salão". O padrão semanal descreve o
+  que se repete toda semana e "Gerar mês" cria o mês inteiro a partir dele, sem tocar
+  no que já foi ajustado à mão nem duplicar o que já existe.
+- Os dois programas de pregação saem em PDF no formato de calendário mensal, com o
+  rodapé trazendo os grupos (dirigente e ponto de encontro) e a observação do mês.
+- Os dados de pregação entram na exportação por arquivo e na sincronização pela rede,
+  como mais um bloco a escolher.
+- No Android, tocar num arquivo `.sonntag` passa a oferecer o Sonntag na lista de
+  "abrir com", e o app abre direto no resumo da importação. Vale também para
+  compartilhar o arquivo com o app a partir de outro aplicativo.
+
+### Corrigido
+- No celular, importar a apostila trazia metade de cada semana: nenhum cântico e a
+  seção Nossa Vida Cristã vazia, com as partes dela caindo no Ministério. A biblioteca
+  de PDF do Android devolve os acentos separados da letra ("Cancio" + acento), e o
+  texto deixava de casar com o que o app procura; o enfeite do título da seção também
+  chegava diferente do desktop. Agora a leitura junta os acentos e compara só as
+  letras do título, e o resultado no celular é idêntico ao do computador.
+- Uma parte da apostila era perdida quando o título começava com aspas, porque elas
+  vinham coladas no número ("7.“Te salvarás..."). Acontecia nos dois sistemas.
+- A sincronização gravava sozinha os registros novos e as atualizações; só as
+  divergências passavam por você. Agora o resumo agrupa por bloco e por tipo de
+  mudança — novos, atualizações, exclusões e divergências — e só os novos vêm
+  marcados: nada que sobrescreva ou apague é aplicado sem a sua marcação. Cada grupo
+  abre para decidir registro a registro.
+- Uma exclusão vinda do outro aparelho podia apagar aqui uma reunião com programa
+  preenchido. Quando os dois lados criaram a mesma reunião com identidades diferentes
+  e um deles apagou a duplicata, essa exclusão viajava e casava com a linha viva do
+  outro lado. Exclusões agora só valem para a mesma identidade.
+- A agenda voltava a duplicar quando os dois aparelhos tinham horários diferentes para
+  o mesmo dia: o gerador não reconhecia a reunião que chegou às 19:30 e criava outra às
+  19:00 no mesmo dia. Ele passa a identificar a reunião por data e tipo, como o resto
+  do app já fazia.
+- Ao abrir, o app apaga de vez as duplicatas que a fusão de agendas já tinha marcado
+  como excluídas. Elas continuavam viajando em cada troca e ameaçando o outro aparelho.
+- Em computadores com Docker, VPN ou máquina virtual, os aparelhos não se enxergavam na
+  rede local: o anúncio saía por uma ponte virtual que não leva a lugar nenhum. O app
+  passa a usar a interface por onde o sistema realmente alcança a rede.
+
+### Alterado
+- Todos os documentos exportados passam a ter o mesmo cabeçalho: um cartão com o nome
+  do documento e o período à esquerda e um bloco azul com a congregação à direita.
+  Vale para fim de semana (mensal e por reunião), áudio/vídeo e limpeza. Nos documentos
+  de mais de uma página o cabeçalho se repete em todas, para cada folha se explicar
+  sozinha.
+- O programa de meio de semana (S-140) foi repintado nas cores do modelo impresso, com
+  os pictogramas das três seções (tesouros, ministério e vida cristã), a leitura da
+  semana alinhada à direita na faixa e cada seção na sua cor.
+- Nos programas de fim de semana e de áudio/vídeo, cada reunião ganhou uma faixa azul
+  atrás da data, que separa um bloco do outro de longe.
+- Os dias e horários de reunião não viajam mais pela rede local: cada instalação mantém
+  os seus, e aceitar os do vizinho regerava a agenda inteira no horário errado. No
+  arquivo exportado eles continuam, porque ali servem para montar uma instalação nova.
+- Na tabela Dirigente/Leitor do S-140, os nomes eram desenhados por cima da faixa do
+  cabeçalho em vez de dentro da célula.
 
 ## [1.0.5] - 2026-08-05
 
