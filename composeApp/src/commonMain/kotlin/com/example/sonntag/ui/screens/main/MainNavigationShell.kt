@@ -62,6 +62,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.sonntag.data.repos.SettingsRepository
+import com.example.sonntag.sync.IncomingPackage
 import com.example.sonntag.data.sqldelight.Settings
 import com.example.sonntag.i18n.tr
 import com.example.sonntag.ui.layout.LocalWindowSize
@@ -146,6 +147,11 @@ fun MainNavigationShell() {
             if (latest != settings) settings = latest
             kotlinx.coroutines.delay(2000)
         }
+    }
+
+    // Um pacote aberto por fora do app (toque num .sonntag) cai na tela de Dados.
+    LaunchedEffect(IncomingPackage.bytes) {
+        if (IncomingPackage.bytes != null) selectedId = "configuracoes"
     }
 
     val selected = allItems.firstOrNull { it.id == selectedId } ?: allItems.first()

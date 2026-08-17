@@ -264,6 +264,17 @@ tasks.register<JavaExec>("renderPreaching") {
     )
 }
 
+tasks.register<JavaExec>("makePackage") {
+    val jvmMain = kotlin.jvm().compilations.getByName("main")
+    dependsOn(jvmMain.compileTaskProvider)
+    classpath = jvmMain.output.allOutputs + jvmMain.runtimeDependencyFiles
+    mainClass.set("com.example.sonntag.tools.MakePackageKt")
+    args(
+        System.getenv("DB") ?: "${System.getProperty("user.home")}/.salao-app/data.db",
+        System.getenv("OUT") ?: "/tmp/pacote.sonntag",
+    )
+}
+
 tasks.register<JavaExec>("repairDb") {
     val jvmMain = kotlin.jvm().compilations.getByName("main")
     dependsOn(jvmMain.compileTaskProvider)

@@ -38,6 +38,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -49,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import com.example.sonntag.i18n.tr
 import com.example.sonntag.net.LanPeer
 import com.example.sonntag.sync.ChangeKind
+import com.example.sonntag.sync.IncomingPackage
 import com.example.sonntag.sync.IncomingRow
 import com.example.sonntag.sync.SyncSection
 import com.example.sonntag.sync.requires
@@ -119,6 +121,11 @@ fun DataTransferScreenContent() {
             onPasswordChange = viewModel::setExportPassword,
             onExport = viewModel::export,
         )
+        // Pacote que chegou de fora: abre o resumo sem passar pelo seletor.
+        LaunchedEffect(IncomingPackage.bytes) {
+            IncomingPackage.consumir()?.let(viewModel::openPackageBytes)
+        }
+
         ImportCard(busy = state.isBusy, onImport = viewModel::pickFileToImport)
         LanCard(
             visible = state.lanVisible,

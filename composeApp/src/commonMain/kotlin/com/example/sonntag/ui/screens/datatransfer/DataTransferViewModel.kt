@@ -260,32 +260,56 @@ class DataTransferViewModel(
                     _uiState.value = _uiState.value.copy(isBusy = false)
                     return@launch
                 }
-                val header = syncService.readHeader(bytes)
-                if (header == null) {
-                    _uiState.value = _uiState.value.copy(
-                        isBusy = false,
-                        message = t("Este arquivo não é um pacote do Sonntag."),
-                    )
-                    return@launch
-                }
-                if (header.protected) {
-                    // Sem a senha nem da para listar o que ha dentro.
-                    _uiState.value = _uiState.value.copy(
-                        isBusy = false,
-                        pendingBytes = bytes,
-                        askPassword = true,
-                        importPassword = "",
-                        passwordError = false,
-                    )
-                } else {
-                    buildPreview(bytes, null)
-                }
+                abrePacote(bytes)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isBusy = false,
                     message = t("Erro ao importar: {0}", e.message),
                 )
             }
+        }
+    }
+
+    /**
+     * Abre um pacote que ja esta em maos — o arquivo tocado fora do app, que a
+     * Activity leu antes de a tela existir.
+     */
+    fun openPackageBytes(bytes: ByteArray) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _uiState.value = _uiState.value.copy(isBusy = true, message = null)
+            try {
+                abrePacote(bytes)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isBusy = false,
+                    message = localeController.translator("Erro ao importar: {0}", e.message),
+                )
+            }
+        }
+    }
+
+    /** Confere o cabecalho e decide entre pedir a senha ou ja mostrar o resumo. */
+    private fun abrePacote(bytes: ByteArray) {
+        val t = localeController.translator
+        val header = syncService.readHeader(bytes)
+        if (header == null) {
+            _uiState.value = _uiState.value.copy(
+                isBusy = false,
+                message = t("Este arquivo não é um pacote do Sonntag."),
+            )
+            return
+        }
+        if (header.protected) {
+            // Sem a senha nem da para listar o que ha dentro.
+            _uiState.value = _uiState.value.copy(
+                isBusy = false,
+                pendingBytes = bytes,
+                askPassword = true,
+                importPassword = "",
+                passwordError = false,
+            )
+        } else {
+            buildPreview(bytes, null)
         }
     }
 

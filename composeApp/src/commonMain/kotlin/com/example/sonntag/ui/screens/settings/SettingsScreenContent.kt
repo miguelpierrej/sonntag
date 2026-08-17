@@ -39,6 +39,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,6 +50,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.sonntag.ui.components.ScreenScaffold
+import com.example.sonntag.sync.IncomingPackage
 import com.example.sonntag.ui.screens.cleaninggroups.CleaningGroupsScreenContent
 import com.example.sonntag.ui.screens.datatransfer.DataTransferScreenContent
 import org.koin.compose.koinInject
@@ -68,6 +70,10 @@ private val DIAS_SEMANA = listOf(
 @Composable
 fun SettingsScreenContent() {
     val tab = remember { mutableStateOf(0) }
+    // Com um pacote esperando, a aba de Dados e o unico destino que faz sentido.
+    LaunchedEffect(IncomingPackage.bytes) {
+        if (IncomingPackage.bytes != null) tab.value = 2
+    }
     val subtitle = when (tab.value) {
         0 -> tr("Dados gerais e dias de reunião")
         1 -> tr("Grupos de limpeza")

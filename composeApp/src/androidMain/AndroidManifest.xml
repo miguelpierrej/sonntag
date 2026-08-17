@@ -24,6 +24,53 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <!--
+                Abrir um pacote .sonntag tocando no arquivo.
+
+                A extensao nao tem MIME registrado, entao o filtro casa pelo fim do
+                caminho. Sao varias combinacoes de proposito: cada gerenciador de
+                arquivos entrega o arquivo de um jeito (file:// ou content://, com ou
+                sem tipo declarado), e um filtro so nao pega todos.
+            -->
+            <intent-filter android:label="Sonntag">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" android:host="*" android:mimeType="*/*"
+                    android:pathPattern=".*\\.sonntag" />
+                <data android:scheme="content" android:host="*" android:mimeType="*/*"
+                    android:pathPattern=".*\\..*\\.sonntag" />
+                <data android:scheme="file" android:host="*" android:mimeType="*/*"
+                    android:pathPattern=".*\\.sonntag" />
+                <data android:scheme="file" android:host="*" android:mimeType="*/*"
+                    android:pathPattern=".*\\..*\\.sonntag" />
+                <data android:scheme="content" android:host="*"
+                    android:mimeType="application/x-sonntag" />
+            </intent-filter>
+
+            <!--
+                Muitos gerenciadores entregam a URI pelo id, sem o nome do arquivo no
+                caminho (content://media/external/downloads/267). Ali o padrao por
+                extensao nao tem o que casar, e o tipo e o unico sinal que sobra: um
+                .sonntag chega como application/octet-stream.
+
+                O preco e o app aparecer na lista para qualquer binario desconhecido;
+                quando o arquivo nao e um pacote, a tela de Dados diz isso e para.
+            -->
+            <intent-filter android:label="Sonntag">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" android:mimeType="application/octet-stream" />
+            </intent-filter>
+
+            <!-- Compartilhar o pacote com o app (menu "Compartilhar" do sistema). -->
+            <intent-filter android:label="Sonntag">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/octet-stream" />
+                <data android:mimeType="application/x-sonntag" />
+            </intent-filter>
         </activity>
     </application>
 </manifest>
