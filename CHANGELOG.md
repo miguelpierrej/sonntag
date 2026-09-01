@@ -8,7 +8,7 @@ versionamento segue o [Semantic Versioning](https://semver.org/lang/pt-BR/).
 O workflow de release lê a seção da versão que está sendo fechada e usa o conteúdo
 como corpo do GitHub Release — o cabeçalho precisa ser `## [x.y.z] - AAAA-MM-DD`.
 
-## [1.0.7] - UNRELEASED
+## [1.0.7] - 2026-09-01
 
 ### Adicionado
 - Aba Eventos em Configurações, para cadastrar assembleias, congressos e comemorações
