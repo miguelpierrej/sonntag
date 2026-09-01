@@ -37,6 +37,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -45,6 +46,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.sonntag.ui.components.EmptyState
+import com.example.sonntag.ui.components.EventAnnouncementRow
 import com.example.sonntag.ui.components.MonthNavigator
 import com.example.sonntag.ui.components.ScreenScaffold
 import org.koin.compose.koinInject
@@ -55,6 +57,10 @@ private val CardMaxWidth = 720.dp
 fun CleaningScreenContent() {
     val viewModel = koinInject<CleaningViewModel>()
     val state by viewModel.uiState.collectAsState()
+
+    // Recarrega ao voltar para a tela: um evento cadastrado em Configuracoes muda
+    // quais semanas pedem designacao.
+    LaunchedEffect(Unit) { viewModel.load() }
 
     val isViewingCurrentMonth = state.visibleYear == state.today.year &&
         state.visibleMonth == state.today.monthNumber
@@ -171,18 +177,29 @@ private fun WeekCard(
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = alphaMod),
             )
             Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = item.meetingDates.joinToString(" • ") { t.dayWithDate(it) },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alphaMod),
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            GroupDropdown(
-                selectedId = item.assignedGroupId,
-                groupOptions = groupOptions,
-                enabled = !item.isPast,
-                onSelected = onSelected,
-            )
+            val event = item.event
+            if (item.hasMeetings) {
+                Text(
+                    text = item.meetingDates.joinToString(" • ") { t.dayWithDate(it) },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alphaMod),
+                )
+                if (event != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    EventAnnouncementRow(event = event)
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                GroupDropdown(
+                    selectedId = item.assignedGroupId,
+                    groupOptions = groupOptions,
+                    enabled = !item.isPast,
+                    onSelected = onSelected,
+                )
+            } else if (event != null) {
+                // Semana inteira tomada pelo evento: nao ha reuniao para limpar.
+                Spacer(modifier = Modifier.height(4.dp))
+                EventAnnouncementRow(event = event)
+            }
         }
     }
 }

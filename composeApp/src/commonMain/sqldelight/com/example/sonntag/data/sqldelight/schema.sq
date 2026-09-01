@@ -34,6 +34,11 @@ CREATE TABLE members (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     nome TEXT NOT NULL,
     sobrenome TEXT NOT NULL,
+    -- Responsabilidades, todas opcionais. So aparecem ao lado do nome na lista de
+    -- grupos de pregacao; o resto do app nao distingue quem tem qual.
+    anciao INTEGER NOT NULL DEFAULT 0,
+    servo_ministerial INTEGER NOT NULL DEFAULT 0,
+    pioneiro INTEGER NOT NULL DEFAULT 0,
     -- Sincronizacao: identidade global, carimbo de alteracao e exclusao logica
     uuid TEXT NOT NULL,
     updated_at TEXT NOT NULL,
@@ -210,6 +215,22 @@ CREATE TABLE preaching_groups (
     deleted INTEGER NOT NULL DEFAULT 0
 );
 
+-- Quem compoe cada grupo. Linha propria (e nao uma coluna em members) porque a
+-- sincronizacao ordena os blocos: members entra antes de preaching_groups, e uma
+-- coluna la apontaria para uma tabela que ainda nao chegou.
+CREATE TABLE preaching_group_members (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    preaching_group_id INTEGER NOT NULL,
+    member_id INTEGER NOT NULL,
+    -- Sincronizacao: identidade global, carimbo de alteracao e exclusao logica
+    uuid TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    updated_by TEXT NOT NULL,
+    deleted INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (preaching_group_id) REFERENCES preaching_groups(id) ON DELETE CASCADE,
+    FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE
+);
+
 -- Um turno do calendario: hora, ponto e ate quatro designados (duas duplas)
 CREATE TABLE preaching_shifts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -262,6 +283,20 @@ CREATE TABLE preaching_notes (
     UNIQUE(tipo, ano, mes)
 );
 
+-- Eventos que substituem as reunioes: assembleias, congressos e comemoracoes.
+-- A regra de qual reuniao cai fica no dominio (EventSchedule), nao aqui.
+CREATE TABLE events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome TEXT NOT NULL,
+    data TEXT NOT NULL, -- yyyy-MM-dd
+    tipo TEXT NOT NULL, -- ASSEMBLEIA, CONGRESSO, COMEMORACAO ou OUTRO
+    -- Sincronizacao: identidade global, carimbo de alteracao e exclusao logica
+    uuid TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    updated_by TEXT NOT NULL,
+    deleted INTEGER NOT NULL DEFAULT 0
+);
+
 -- Um uuid nunca se repete: e a identidade da linha entre maquinas
 CREATE UNIQUE INDEX settings_uuid ON settings(uuid);
 CREATE UNIQUE INDEX meeting_days_uuid ON meeting_days(uuid);
@@ -274,9 +309,11 @@ CREATE UNIQUE INDEX cleaning_assignments_uuid ON cleaning_assignments(uuid);
 CREATE UNIQUE INDEX av_assignments_uuid ON av_assignments(uuid);
 CREATE UNIQUE INDEX preaching_spots_uuid ON preaching_spots(uuid);
 CREATE UNIQUE INDEX preaching_groups_uuid ON preaching_groups(uuid);
+CREATE UNIQUE INDEX preaching_group_members_uuid ON preaching_group_members(uuid);
 CREATE UNIQUE INDEX preaching_shifts_uuid ON preaching_shifts(uuid);
 CREATE UNIQUE INDEX preaching_templates_uuid ON preaching_templates(uuid);
 CREATE UNIQUE INDEX preaching_notes_uuid ON preaching_notes(uuid);
+CREATE UNIQUE INDEX events_uuid ON events(uuid);
 
 -- Ate quando ja trocamos dados com cada aparelho conhecido. Permite enviar so o
 -- que mudou desde a ultima sincronizacao, em vez do banco inteiro.
@@ -348,10 +385,13 @@ getMemberById:
 SELECT * FROM members WHERE id = ? AND deleted = 0;
 
 insertMember:
-INSERT INTO members (nome, sobrenome, uuid, updated_at, updated_by) VALUES (?, ?, ?, ?, ?);
+INSERT INTO members (nome, sobrenome, anciao, servo_ministerial, pioneiro, uuid, updated_at, updated_by)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?);
 
 updateMember:
-UPDATE members SET nome = ?, sobrenome = ?, updated_at = ?, updated_by = ?, deleted = 0 WHERE id = ?;
+UPDATE members SET nome = ?, sobrenome = ?, anciao = ?, servo_ministerial = ?, pioneiro = ?,
+    updated_at = ?, updated_by = ?, deleted = 0
+WHERE id = ?;
 
 deleteMember:
 UPDATE members SET deleted = 1, updated_at = ?, updated_by = ? WHERE id = ?;
@@ -623,6 +663,29 @@ WHERE id = ?;
 deletePreachingGroup:
 UPDATE preaching_groups SET deleted = 1, updated_at = ?, updated_by = ? WHERE id = ?;
 
+-- Preaching group members queries
+
+getAllPreachingGroupMembers:
+SELECT * FROM preaching_group_members WHERE deleted = 0;
+
+-- Inclui excluidos: reviver a linha mantem o uuid, e a exclusao do outro aparelho
+-- nao volta a valer para um vinculo que foi refeito aqui.
+getPreachingGroupMemberAny:
+SELECT * FROM preaching_group_members WHERE preaching_group_id = ? AND member_id = ?;
+
+getPreachingGroupMembershipsOfMember:
+SELECT * FROM preaching_group_members WHERE member_id = ? AND deleted = 0;
+
+insertPreachingGroupMember:
+INSERT INTO preaching_group_members (preaching_group_id, member_id, uuid, updated_at, updated_by)
+VALUES (?, ?, ?, ?, ?);
+
+revivePreachingGroupMember:
+UPDATE preaching_group_members SET deleted = 0, updated_at = ?, updated_by = ? WHERE id = ?;
+
+deletePreachingGroupMember:
+UPDATE preaching_group_members SET deleted = 1, updated_at = ?, updated_by = ? WHERE id = ?;
+
 -- Preaching shifts queries
 
 getPreachingShiftsBetween:
@@ -684,3 +747,22 @@ VALUES (?, ?, ?, ?, ?, ?, ?);
 
 updatePreachingNote:
 UPDATE preaching_notes SET texto = ?, updated_at = ?, updated_by = ?, deleted = 0 WHERE id = ?;
+
+
+-- Events queries
+
+getAllEvents:
+SELECT * FROM events WHERE deleted = 0 ORDER BY data ASC;
+
+getEventsBetween:
+SELECT * FROM events WHERE deleted = 0 AND data >= ? AND data <= ? ORDER BY data ASC;
+
+insertEvent:
+INSERT INTO events (nome, data, tipo, uuid, updated_at, updated_by)
+VALUES (?, ?, ?, ?, ?, ?);
+
+updateEvent:
+UPDATE events SET nome = ?, data = ?, tipo = ?, updated_at = ?, updated_by = ?, deleted = 0 WHERE id = ?;
+
+deleteEvent:
+UPDATE events SET deleted = 1, updated_at = ?, updated_by = ? WHERE id = ?;

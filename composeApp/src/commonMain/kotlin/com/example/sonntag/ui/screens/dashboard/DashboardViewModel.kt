@@ -4,13 +4,16 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.sonntag.data.repos.CleaningAssignmentsRepository
 import com.example.sonntag.data.repos.CleaningGroupsRepository
+import com.example.sonntag.data.repos.EventsRepository
 import com.example.sonntag.data.repos.MeetingsRepository
 import com.example.sonntag.data.repos.MembersRepository
 import com.example.sonntag.data.repos.MidweekProgramsRepository
 import com.example.sonntag.data.repos.WeekendProgramsRepository
 import com.example.sonntag.data.sqldelight.Meetings
 import com.example.sonntag.data.sqldelight.Members
+import com.example.sonntag.domain.usecases.EventSchedule
 import com.example.sonntag.domain.usecases.MeetingGenerator
+import com.example.sonntag.domain.usecases.toDomain
 import com.example.sonntag.domain.usecases.isoYearWeek
 import com.example.sonntag.domain.usecases.weekStart
 import com.example.sonntag.i18n.LocaleController
@@ -18,6 +21,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 import kotlinx.datetime.DatePeriod
@@ -50,6 +54,16 @@ data class CleaningWeekInfo(
     val periodText: String,
     val groupName: String?,
     val nextWeekGroupName: String?,
+    /** Semana sem reuniao por causa de um evento: entra no lugar do grupo. */
+    val eventLabel: String? = null,
+)
+
+/** Um evento proximo, ja com os rotulos resolvidos. */
+data class UpcomingEventItem(
+    val nome: String,
+    val typeLabel: String,
+    val dateLabel: String,
+    val relativeLabel: String,
 )
 
 data class PendingProgramItem(
@@ -63,6 +77,7 @@ data class DashboardUiState(
     val nextMeeting: NextMeetingInfo? = null,
     val cleaning: CleaningWeekInfo? = null,
     val pendingItems: List<PendingProgramItem> = emptyList(),
+    val upcomingEvents: List<UpcomingEventItem> = emptyList(),
     val pendingWindowDays: Int = PENDING_WINDOW_DAYS,
 )
 
@@ -75,6 +90,7 @@ class DashboardViewModel(
     private val membersRepository: MembersRepository,
     private val meetingGenerator: MeetingGenerator,
     private val localeController: LocaleController,
+    private val eventsRepository: EventsRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DashboardUiState())
@@ -82,6 +98,19 @@ class DashboardViewModel(
 
     init {
         load()
+        observarMembros()
+    }
+
+    /**
+     * A tela vive enquanto o app vive (e um singleton do Koin): sem observar a
+     * tabela, um publicador cadastrado ou editado em Membros so apareceria aqui
+     * depois de reabrir o app. A primeira emissao e descartada porque `init` ja
+     * carregou.
+     */
+    private fun observarMembros() {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching { membersRepository.getAll().drop(1).collect { load() } }
+        }
     }
 
     fun load() {
@@ -90,16 +119,32 @@ class DashboardViewModel(
 
             val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
             val horizon = today.plus(DatePeriod(days = PENDING_WINDOW_DAYS))
+            val allEvents = eventsRepository.getAllOnce().map { it.toDomain() }
+            val events = EventSchedule(allEvents)
+            // Reuniao que o evento cancelou nao e proxima reuniao nem fica pendente:
+            // ninguem vai preencher a programacao de uma semana que nao acontece.
             val upcoming = meetingsRepository
                 .getByDateRangeOnce(today.toString(), horizon.toString())
                 .sortedWith(compareBy({ it.data_ }, { it.hora }))
+                .filter { events.replacing(LocalDate.parse(it.data_), it.tipo) == null }
             val members = membersRepository.getAllOnce().associateBy { it.id }
 
             _uiState.value = DashboardUiState(
                 isLoading = false,
                 nextMeeting = upcoming.firstOrNull()?.let { buildNextMeeting(it, today, members) },
-                cleaning = buildCleaningWeek(today),
+                cleaning = buildCleaningWeek(today, events),
                 pendingItems = upcoming.filter { isPending(it) }.map { buildPendingItem(it) },
+                upcomingEvents = allEvents
+                    .filter { it.date >= today }
+                    .sortedBy { it.date }
+                    .map {
+                        UpcomingEventItem(
+                            nome = it.nome,
+                            typeLabel = localeController.translator(it.tipo.label),
+                            dateLabel = localeController.translator.longDate(it.date),
+                            relativeLabel = relativeLabel(it.date, today),
+                        )
+                    },
             )
         }
     }
@@ -144,9 +189,10 @@ class DashboardViewModel(
         )
     }
 
-    private fun buildCleaningWeek(today: LocalDate): CleaningWeekInfo {
+    private fun buildCleaningWeek(today: LocalDate, events: EventSchedule): CleaningWeekInfo {
         val monday = weekStart(today)
         val sunday = monday.plus(DatePeriod(days = 6))
+        val weekEvent = events.replacingWeek(monday)
         val groupsById = cleaningGroupsRepository.getAllOnce().associateBy { it.id }
 
         fun groupNameFor(date: LocalDate): String? {
@@ -158,8 +204,11 @@ class DashboardViewModel(
 
         return CleaningWeekInfo(
             periodText = localeController.translator.weekRange(monday, sunday),
-            groupName = groupNameFor(today),
+            groupName = if (weekEvent != null) null else groupNameFor(today),
             nextWeekGroupName = groupNameFor(monday.plus(DatePeriod(days = 7))),
+            eventLabel = weekEvent?.let {
+                localeController.translator("Sem reunião · {0}", it.nome)
+            },
         )
     }
 

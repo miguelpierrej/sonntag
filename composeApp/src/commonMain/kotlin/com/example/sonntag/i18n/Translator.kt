@@ -136,6 +136,10 @@ object EsTranslations {
         "Editar membro" to "Editar publicador",
         "Nome" to "Nombre",
         "Sobrenome" to "Apellido",
+        "Responsabilidades (opcional)" to "Responsabilidades (opcional)",
+        "Ancião" to "Anciano",
+        "Servo ministerial" to "Siervo ministerial",
+        "Pioneiro" to "Precursor",
         "Buscar por nome/sobrenome" to "Buscar por nombre/apellido",
         "Nenhum membro cadastrado" to "Ningún publicador registrado",
         "Nenhum membro encontrado" to "Ningún publicador encontrado",
@@ -391,6 +395,17 @@ object EsTranslations {
         "Erro ao salvar o grupo" to "Error al guardar el grupo",
         "Erro ao remover o grupo" to "Error al eliminar el grupo",
         "Erro ao reordenar os grupos" to "Error al reordenar los grupos",
+        "Exportar lista" to "Exportar lista",
+        "Publicadores ({0})" to "Publicadores ({0})",
+        "Ocultar publicadores" to "Ocultar publicadores",
+        "Nenhum publicador neste grupo" to "Ningún publicador en este grupo",
+        "Adicionar publicador" to "Añadir publicador",
+        "Publicador" to "Publicador",
+        "Cada publicador pertence a um grupo só; escolher aqui tira do grupo anterior." to
+            "Cada publicador pertenece a un solo grupo; elegirlo aquí lo quita del grupo anterior.",
+        "Todos os publicadores já estão neste grupo" to "Todos los publicadores ya están en este grupo",
+        "Erro ao exportar a lista de grupos" to "Error al exportar la lista de grupos",
+        "Escreva o nome" to "Escriba el nombre",
 
         // Calendário de pregação
         "Programação dos carrinhos" to "Programación de los carritos",
@@ -447,6 +462,44 @@ object EsTranslations {
         "Outros" to "Otros",
         "{0} ignorados: referência ausente ou duplicata já apagada aqui" to
             "{0} ignorados: referencia ausente o duplicado ya borrado aquí",
+
+        // Eventos (assembleias, congressos e comemorações)
+        "Eventos" to "Eventos",
+        "Semanas sem reunião por assembleia, congresso ou comemoração" to
+            "Semanas sin reunión por asamblea, congreso o conmemoración",
+        "Assembleias, congressos e comemorações substituem as reuniões da semana." to
+            "Las asambleas, los congresos y las conmemoraciones sustituyen las reuniones de la semana.",
+        "Novo evento" to "Nuevo evento",
+        "Editar evento" to "Editar evento",
+        "Nome do evento" to "Nombre del evento",
+        "Data" to "Fecha",
+        "Tipo" to "Tipo",
+        "Use o formato dd/mm/aaaa" to "Use el formato dd/mm/aaaa",
+        "Assembleia" to "Asamblea",
+        "Congresso" to "Congreso",
+        "Comemoração" to "Conmemoración",
+        "Outro" to "Otro",
+        "Nenhum evento cadastrado" to "Ningún evento registrado",
+        "Cadastre assembleias, congressos e comemorações para que as semanas afetadas não peçam designações." to
+            "Registre asambleas, congresos y conmemoraciones para que las semanas afectadas no pidan asignaciones.",
+        "Cadastrar primeiro evento" to "Registrar primer evento",
+        "Deseja realmente remover este evento? As reuniões da semana voltam a pedir designações." to
+            "¿Seguro que desea eliminar este evento? Las reuniones de la semana volverán a pedir asignaciones.",
+        "Sem reunião de meio de semana nem de fim de semana nesta semana." to
+            "Sin reunión entre semana ni de fin de semana en esta semana.",
+        "Substitui a reunião deste mesmo dia; a de meio de semana acontece normalmente." to
+            "Sustituye la reunión de ese mismo día; la de entre semana se celebra normalmente.",
+        "Sem reunião de meio de semana nesta semana; o fim de semana é normal." to
+            "Sin reunión entre semana en esta semana; el fin de semana es normal.",
+        "Apenas anunciado: nenhuma reunião é cancelada." to
+            "Solo se anuncia: no se cancela ninguna reunión.",
+        "Sem reunião · {0}: {1}" to "Sin reunión · {0}: {1}",
+        "Sem reunião · {0}" to "Sin reunión · {0}",
+        "Próximos eventos" to "Próximos eventos",
+        "Erro ao carregar eventos" to "Error al cargar los eventos",
+        "Erro ao adicionar evento" to "Error al añadir el evento",
+        "Erro ao editar evento" to "Error al editar el evento",
+        "Erro ao remover evento" to "Error al eliminar el evento",
 
         // Comuns de reunião
         "Selecione uma reunião para editar (meio de semana)" to "Seleccione una reunión (entre semana)",

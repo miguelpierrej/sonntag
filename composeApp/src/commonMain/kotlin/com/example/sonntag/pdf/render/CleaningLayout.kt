@@ -109,8 +109,10 @@ class CleaningLayout(
             data.semanas.forEachIndexed { index, row ->
                 val weekLines = wrapText(canvas, row.periodo, bodyStyle, colWeek - cellPad * 2f)
                 val meetLines = wrapText(canvas, row.diasReuniao, bodyStyle, colMeetings - cellPad * 2f)
-                val isPlaceholder = row.grupoResponsavel.isNullOrBlank()
-                val groupText = row.grupoResponsavel?.takeIf { it.isNotBlank() } ?: data.labels.common.aDefinir
+                val isPlaceholder = row.eventoLabel != null || row.grupoResponsavel.isNullOrBlank()
+                val groupText = row.eventoLabel
+                    ?: row.grupoResponsavel?.takeIf { it.isNotBlank() }
+                    ?: data.labels.common.aDefinir
                 val groupStyle = if (isPlaceholder) placeholderStyle else bodyStyle
                 val groupLines = wrapText(canvas, groupText, groupStyle, colGroup - cellPad * 2f)
 

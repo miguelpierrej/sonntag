@@ -3,6 +3,7 @@ package com.example.sonntag.ui.screens.members
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.sonntag.data.repos.MembersRepository
+import com.example.sonntag.data.repos.Responsabilidades
 import com.example.sonntag.data.sqldelight.Members
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collect
@@ -52,20 +53,20 @@ class MembersViewModel(
         _uiState.value = _uiState.value.copy(search = value)
     }
 
-    fun addMember(nome: String, sobrenome: String) {
+    fun addMember(nome: String, sobrenome: String, responsabilidades: Responsabilidades) {
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
-                membersRepository.insert(nome.trim(), sobrenome.trim())
+                membersRepository.insert(nome.trim(), sobrenome.trim(), responsabilidades)
             }.onFailure {
                 _uiState.value = _uiState.value.copy(errorMessage = "Erro ao adicionar membro")
             }
         }
     }
 
-    fun updateMember(id: Long, nome: String, sobrenome: String) {
+    fun updateMember(id: Long, nome: String, sobrenome: String, responsabilidades: Responsabilidades) {
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
-                membersRepository.update(id, nome.trim(), sobrenome.trim())
+                membersRepository.update(id, nome.trim(), sobrenome.trim(), responsabilidades)
             }.onFailure {
                 _uiState.value = _uiState.value.copy(errorMessage = "Erro ao editar membro")
             }

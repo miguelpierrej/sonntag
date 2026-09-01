@@ -110,6 +110,17 @@ class MidweekProgramLayout(
         }
         y -= bandH + 12f
 
+        // Semana de evento: a coluna traz o anuncio no lugar do programa inteiro.
+        wk.eventoLabel?.let { anuncio ->
+            var ay = y - 24f
+            canvas.wrapText(anuncio, TextStyle(11f, DocColors.Navy, FontStyle.BOLD), colW - 16f)
+                .forEach { ln ->
+                    canvas.textCentered(ln, x, colW, ay, TextStyle(11f, DocColors.Navy, FontStyle.BOLD))
+                    ay -= 16f
+                }
+            return
+        }
+
         y = labelValue(canvas, labels.presidente, wk.presidente, x, y, colW)
         y = labelValue(canvas, labels.oracaoInicial, wk.oracaoInicial, x, y, colW)
         y -= 8f

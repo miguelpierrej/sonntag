@@ -8,16 +8,21 @@ import com.example.sonntag.pdf.CleaningScheduleLine
 import com.example.sonntag.pdf.MeetingProgramPdfData
 import com.example.sonntag.pdf.MidweekPartPdf
 import com.example.sonntag.pdf.MonthlyProgramPdfData
+import com.example.sonntag.pdf.PreachingGroupMemberPdf
+import com.example.sonntag.pdf.PreachingGroupSheetPdf
+import com.example.sonntag.pdf.PreachingGroupsPdfData
 import com.example.sonntag.pdf.PdfMeetingLine
 import com.example.sonntag.pdf.MidweekProgramPdfData
 import com.example.sonntag.pdf.MidweekWeekPdf
 import com.example.sonntag.pdf.avPdfStrings
 import com.example.sonntag.pdf.cleaningPdfStrings
 import com.example.sonntag.pdf.midweekPdfStrings
+import com.example.sonntag.pdf.preachingPdfStrings
 import com.example.sonntag.pdf.weekendPdfStrings
 import com.example.sonntag.pdf.render.AvScheduleLayout
 import com.example.sonntag.pdf.render.CleaningLayout
 import com.example.sonntag.pdf.render.MidweekProgramLayout
+import com.example.sonntag.pdf.render.PreachingGroupsLayout
 import com.example.sonntag.pdf.render.WeekendMeetingLayout
 import com.example.sonntag.pdf.render.WeekendMonthlyLayout
 import com.example.sonntag.pdf.render.PdfBoxCanvas
@@ -59,6 +64,8 @@ fun main(args: Array<String>) {
             plataforma = listOf("Nombre Apellido", "Nombre Apellido"),
             microfones = listOf("Nombre Apellido", "Nombre Apellido"),
             acomodadores = listOf("Nombre Apellido", "Nombre Apellido"),
+            // A quarta reuniao cai numa semana de congresso: o pior caso do bloco.
+            eventoLabel = if (data == "12/04/2026") "Sin reunión · Congreso: Congreso Regional" else null,
         )
     }
     pdf("audio-video") { canvas ->
@@ -83,6 +90,7 @@ fun main(args: Array<String>) {
             presidente = "Vlanilton Amirate",
             dirigenteEstudo = if (i < 3) "Nombre Apellido" else null,
             leitor = if (i < 3) "Nombre Apellido" else null,
+            eventoLabel = if (i == 2) "Sin reunión · Congreso: Congreso Regional" else null,
         )
     }
     pdf("fim-de-semana") { canvas ->
@@ -118,9 +126,72 @@ fun main(args: Array<String>) {
                 congregacao = "Espanhola (Penha de França)", endereco = "Rua Arere 66",
                 mesLabel = "Abril 2026", fileSlug = "limpeza",
                 semanas = (1..5).map {
-                    CleaningScheduleLine("$it–${it + 6} de abril", "Martes y Domingo", "Grupo $it")
+                    if (it == 3) CleaningScheduleLine(
+                        "$it–${it + 6} de abril", "Congreso", null,
+                        eventoLabel = "Sin reunión · Congreso Regional",
+                    ) else CleaningScheduleLine("$it–${it + 6} de abril", "Martes y Domingo", "Grupo $it")
                 },
                 labels = cleaningPdfStrings(lang),
+            ),
+            geradoEm = "15/08/2026 20:30",
+        ).draw(canvas)
+    }
+
+    // ── Grupos de pregacao ──
+    // O exemplo tem quatro grupos (quebra de pagina nas colunas) e um deles com
+    // publicadores demais para uma coluna so (quebra dentro do grupo).
+    val publicadores = listOf(
+        "Nombre Apellido" to "AN | SM | PR", "María Victoria Morales" to "PR",
+        "Juan Carlos Pérez" to null, "Ana Lucía Rodríguez" to "PR",
+        "Pedro Antonio Gómez" to "SM", "Lucía Fernández" to null,
+        "Roberto Silva" to "AN", "Carmen Delgado" to "PR",
+        "Miguel Ángel Torres" to "SM | PR", "Rosa María Castillo" to null,
+        "Andrés Villalba" to null, "Teresa Ibarra" to "PR",
+    ).map { (nome, siglas) -> PreachingGroupMemberPdf(nome, siglas) }
+    pdf("grupos-de-pregacao") { canvas ->
+        PreachingGroupsLayout(
+            PreachingGroupsPdfData(
+                congregacao = "Espanhola (Penha de França)",
+                subtitulo = "Domingo, 5 de abril de 2026",
+                fileSlug = "grupos",
+                grupos = (1..4).map { n ->
+                    PreachingGroupSheetPdf(
+                        nome = "Grupo $n",
+                        dirigente = "Marcos Pinheiro",
+                        auxiliar = if (n == 2) null else "Vlanilton Amirate",
+                        // Nome comprido de proposito: e o caso que saia cortado.
+                        ponto = if (n == 3) null else "Salón Del Reino De Los Testigos De Jehová - Arere",
+                        membros = when (n) {
+                            1 -> (1..5).flatMap { r -> publicadores.map { it.copy(nome = "${it.nome} ($r)") } }
+                            4 -> emptyList()
+                            else -> publicadores.take(n * 3)
+                        },
+                    )
+                },
+                labels = preachingPdfStrings(lang),
+            ),
+            geradoEm = "15/08/2026 20:30",
+        ).draw(canvas)
+    }
+
+    // A folha de dois grupos: colunas largas e centralizadas, o caso comum de uma
+    // congregacao pequena.
+    pdf("grupos-de-pregacao-dois") { canvas ->
+        PreachingGroupsLayout(
+            PreachingGroupsPdfData(
+                congregacao = "Espanhola (Penha de França)",
+                subtitulo = "Domingo, 5 de abril de 2026",
+                fileSlug = "grupos2",
+                grupos = (1..2).map { n ->
+                    PreachingGroupSheetPdf(
+                        nome = "Grupo $n",
+                        dirigente = "Marcos Pinheiro",
+                        auxiliar = "Vlanilton Amirate",
+                        ponto = "Salón Del Reino De Los Testigos De Jehová - Arere",
+                        membros = publicadores,
+                    )
+                },
+                labels = preachingPdfStrings(lang),
             ),
             geradoEm = "15/08/2026 20:30",
         ).draw(canvas)
@@ -153,7 +224,14 @@ fun main(args: Array<String>) {
             data = MidweekProgramPdfData(
                 congregacao = "Espanhola (Penha de França)", subtitulo = "Centro Sur",
                 mesLabel = "Enero 2026", fileSlug = "s140",
-                semanas = listOf(semana, semana.copy(periodo = "12-18 de enero", leitura = "Isaías 21-23")),
+                semanas = listOf(
+                    semana,
+                    semana.copy(
+                        periodo = "12-18 de enero",
+                        leitura = "",
+                        eventoLabel = "Sin reunión · Congreso: Congreso Regional",
+                    ),
+                ),
                 labels = midweekPdfStrings(lang),
             ),
             iconTesouros = icone("secao-tesouros"),

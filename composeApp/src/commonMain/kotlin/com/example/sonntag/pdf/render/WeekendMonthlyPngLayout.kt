@@ -54,7 +54,10 @@ class WeekendMonthlyPngLayout(
 
     private fun blockFor(measurer: DocumentCanvas, line: PdfMeetingLine): RenderBlock {
         val vazio = data.labels.common.aDefinir
-        val origem = listOf(
+        // Semana de evento: uma linha so, no lugar dos cinco campos que ninguem preenche.
+        val origem = if (line.eventoLabel != null) listOf(
+            Triple(data.labels.common.evento, null, line.eventoLabel),
+        ) else listOf(
             Triple(data.labels.titulo, line.tituloDiscurso, data.labels.common.discursoADefinir),
             Triple(data.labels.orador, line.orador, vazio),
             Triple(data.labels.presidente, line.presidente, vazio),

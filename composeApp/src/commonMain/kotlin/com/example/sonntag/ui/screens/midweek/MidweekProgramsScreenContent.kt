@@ -67,6 +67,7 @@ import androidx.compose.ui.unit.dp
 import com.example.sonntag.data.repos.MidweekProgramInput
 import com.example.sonntag.data.sqldelight.Members
 import com.example.sonntag.ui.components.EmptyState
+import com.example.sonntag.ui.components.EventAnnouncementCard
 import com.example.sonntag.ui.components.MonthNavigator
 import com.example.sonntag.ui.components.ScreenScaffold
 import com.example.sonntag.ui.layout.LocalWindowSize
@@ -79,6 +80,10 @@ private val CardMaxWidth = 980.dp
 fun MidweekProgramsScreenContent() {
     val viewModel = koinInject<MidweekProgramsViewModel>()
     val state by viewModel.uiState.collectAsState()
+
+    // Recarrega ao voltar para a tela: um evento cadastrado em Configuracoes muda
+    // quais semanas pedem designacao.
+    LaunchedEffect(Unit) { viewModel.load() }
 
     val visibleMeetings = state.allMeetings.filter {
         it.year == state.visibleYear && it.month == state.visibleMonth
@@ -157,21 +162,35 @@ fun MidweekProgramsScreenContent() {
             )
         } else {
             // A reuniao que vem a seguir ja nasce aberta: e a que se costuma preencher.
-            val proximaId = (visibleMeetings.firstOrNull { !it.isPast } ?: visibleMeetings.first()).id
+            val proximaId = (
+                visibleMeetings.firstOrNull { !it.isPast && it.event == null }
+                    ?: visibleMeetings.firstOrNull { it.event == null }
+                    ?: visibleMeetings.first()
+                ).id
 
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 items(visibleMeetings, key = { it.id }) { item ->
-                    MeetingCard(
-                        item = item,
-                        members = state.members,
-                        selected = item.id == state.selectedMeetingId,
-                        startsExpanded = item.id == proximaId,
-                        onSelect = { viewModel.selectMeeting(item.id) },
-                        onUpdate = { transform -> viewModel.updateForm(item.id, transform) },
-                    )
+                    val event = item.event
+                    if (event != null) {
+                        EventAnnouncementCard(
+                            event = event,
+                            dateLabel = item.dateLabelShort,
+                            isPast = item.isPast,
+                            modifier = Modifier.widthIn(max = CardMaxWidth),
+                        )
+                    } else {
+                        MeetingCard(
+                            item = item,
+                            members = state.members,
+                            selected = item.id == state.selectedMeetingId,
+                            startsExpanded = item.id == proximaId,
+                            onSelect = { viewModel.selectMeeting(item.id) },
+                            onUpdate = { transform -> viewModel.updateForm(item.id, transform) },
+                        )
+                    }
                 }
             }
         }

@@ -28,6 +28,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 import kotlinx.datetime.DatePeriod
@@ -85,6 +86,19 @@ class PreachingCalendarViewModel(
         val hoje = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
         _uiState.value = _uiState.value.copy(visibleYear = hoje.year, visibleMonth = hoje.monthNumber)
         load()
+        observarMembros()
+    }
+
+    /**
+     * A tela vive enquanto o app vive (e um singleton do Koin): sem observar a
+     * tabela, um publicador cadastrado ou editado em Membros so apareceria aqui
+     * depois de reabrir o app. A primeira emissao e descartada porque `init` ja
+     * carregou.
+     */
+    private fun observarMembros() {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching { membersRepository.getAll().drop(1).collect { load() } }
+        }
     }
 
     fun setTipo(tipo: PreachingKind) {

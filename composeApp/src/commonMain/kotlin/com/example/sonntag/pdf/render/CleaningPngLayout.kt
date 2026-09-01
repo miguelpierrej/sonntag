@@ -111,9 +111,11 @@ class CleaningPngLayout(
                 ty += cardLineGap + cardLabelStyle.size.toInt()
                 canvas.text(data.labels.grupoResponsavel, cardX + cardInnerPad, ty.toFloat(), cardLabelStyle)
                 ty += 6 + cardValueStyle.size.toInt()
-                val isPlaceholder = row.grupoResponsavel.isNullOrBlank()
+                val isPlaceholder = row.eventoLabel != null || row.grupoResponsavel.isNullOrBlank()
                 canvas.text(
-                    row.grupoResponsavel?.takeIf { it.isNotBlank() } ?: data.labels.common.aDefinir,
+                    row.eventoLabel
+                        ?: row.grupoResponsavel?.takeIf { it.isNotBlank() }
+                        ?: data.labels.common.aDefinir,
                     cardX + cardInnerPad,
                     ty.toFloat(),
                     if (isPlaceholder) cardValueItalic else cardValueStyle,

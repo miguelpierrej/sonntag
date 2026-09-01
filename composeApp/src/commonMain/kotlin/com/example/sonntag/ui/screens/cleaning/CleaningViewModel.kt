@@ -4,10 +4,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.sonntag.data.repos.CleaningAssignmentsRepository
 import com.example.sonntag.data.repos.CleaningGroupsRepository
+import com.example.sonntag.data.repos.EventsRepository
 import com.example.sonntag.data.repos.MeetingsRepository
 import com.example.sonntag.data.repos.SettingsRepository
 import com.example.sonntag.data.sqldelight.Cleaning_groups
+import com.example.sonntag.domain.usecases.CongregationEvent
+import com.example.sonntag.domain.usecases.EventSchedule
 import com.example.sonntag.domain.usecases.MeetingGenerator
+import com.example.sonntag.domain.usecases.toDomain
 import com.example.sonntag.domain.usecases.isoYearWeek
 import com.example.sonntag.domain.usecases.weekStart
 import com.example.sonntag.pdf.CleaningScheduleLine
@@ -40,7 +44,12 @@ data class CleaningWeekItem(
     val meetingDates: List<LocalDate>,
     val isPast: Boolean,
     val assignedGroupId: Long?,
-)
+    /** Evento que esvaziou (no todo ou em parte) a semana; null quando ela e normal. */
+    val event: CongregationEvent? = null,
+) {
+    /** Semana sem nenhuma reuniao de pe: nao ha o que limpar, nem quem designar. */
+    val hasMeetings: Boolean get() = meetingDates.isNotEmpty()
+}
 
 data class CleaningUiState(
     val isLoading: Boolean = true,
@@ -59,6 +68,7 @@ class CleaningViewModel(
     private val settingsRepository: SettingsRepository,
     private val pdfExportService: PdfExportService,
     private val localeController: LocaleController,
+    private val eventsRepository: EventsRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(CleaningUiState())
@@ -85,6 +95,7 @@ class CleaningViewModel(
 
             val meetings = meetingsRepository.getByDateRangeOnce(rangeStart.toString(), rangeEnd.toString())
             val groups = cleaningGroupsRepository.getAllOnce()
+            val events = EventSchedule(eventsRepository.getAllOnce().map { it.toDomain() })
             val assignments = cleaningAssignmentsRepository.getAllOnce()
                 .associateBy { "${it.ano}-${it.semana_iso}" }
 
@@ -94,8 +105,18 @@ class CleaningViewModel(
                     isoYearWeek(date)
                 }
                 .map { (yw, list) ->
-                    val sortedDates = list.map { LocalDate.parse(it.data_) }.distinct().sorted()
-                    val monday = weekStart(sortedDates.first())
+                    val allDates = list.map { LocalDate.parse(it.data_) }.distinct().sorted()
+                    // A semana continua na lista, mas so conta as reunioes que sobraram:
+                    // ninguem limpa para uma reuniao que o evento cancelou.
+                    val weekEvent = list.firstNotNullOfOrNull {
+                        events.replacing(LocalDate.parse(it.data_), it.tipo)
+                    }
+                    val sortedDates = list
+                        .filter { events.replacing(LocalDate.parse(it.data_), it.tipo) == null }
+                        .map { LocalDate.parse(it.data_) }
+                        .distinct()
+                        .sorted()
+                    val monday = weekStart(allDates.first())
                     val sunday = monday.plus(DatePeriod(days = 6))
                     val key = "${yw.first.toLong()}-${yw.second.toLong()}"
                     val assigned = assignments[key]?.group_id
@@ -111,7 +132,8 @@ class CleaningViewModel(
                         meetingDayTexts = sortedDates.map { formatMeetingDay(it) },
                         meetingDates = sortedDates,
                         isPast = monday < thisWeekMonday,
-                        assignedGroupId = assigned,
+                        assignedGroupId = if (sortedDates.isEmpty()) null else assigned,
+                        event = weekEvent,
                     )
                 }
                 .sortedBy { it.weekStart }
@@ -176,8 +198,15 @@ class CleaningViewModel(
             semanas = visibleWeeks.map { week ->
                 CleaningScheduleLine(
                     periodo = week.periodText,
-                    diasReuniao = week.meetingDayTexts.joinToString(" • "),
+                    diasReuniao = if (week.hasMeetings) {
+                        week.meetingDayTexts.joinToString(" • ")
+                    } else {
+                        week.event?.let { translator(it.tipo.label) }.orEmpty()
+                    },
                     grupoResponsavel = week.assignedGroupId?.let { groupsById[it]?.nome },
+                    eventoLabel = week.event
+                        ?.takeIf { !week.hasMeetings }
+                        ?.let { translator("Sem reunião · {0}", it.nome) },
                 )
             },
             labels = labels,

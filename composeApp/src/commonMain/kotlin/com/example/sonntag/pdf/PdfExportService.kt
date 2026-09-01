@@ -22,6 +22,8 @@ data class PdfMeetingLine(
     val dirigenteEstudo: String?,
     val leitor: String?,
     val grupoLimpeza: String? = null,
+    /** Reuniao substituida por um evento: entra no lugar das designacoes. */
+    val eventoLabel: String? = null,
 )
 
 data class WeeklyProgramPdfData(
@@ -67,6 +69,8 @@ data class MidweekWeekPdf(
     val estudo: MidweekPartPdf,
     val canticoFinal: String?,
     val oracaoFinal: String?,
+    /** Semana substituida por um evento: a coluna traz o anuncio, sem programa. */
+    val eventoLabel: String? = null,
 )
 
 data class MidweekProgramPdfData(
@@ -99,6 +103,8 @@ data class CleaningScheduleLine(
     val periodo: String,
     val diasReuniao: String,
     val grupoResponsavel: String?,
+    /** Semana sem reuniao: entra no lugar do grupo, ja com o nome do evento. */
+    val eventoLabel: String? = null,
 )
 
 data class CleaningSchedulePdfData(
@@ -121,6 +127,8 @@ data class AvScheduleLine(
     val plataforma: List<String>,
     val microfones: List<String>,
     val acomodadores: List<String>,
+    /** Reuniao substituida por um evento: entra no lugar das funcoes tecnicas. */
+    val eventoLabel: String? = null,
 )
 
 data class AvSchedulePdfData(
@@ -179,6 +187,32 @@ data class PreachingProgramPdfData(
     val labels: PreachingPdfStrings,
 )
 
+/**
+ * Um publicador na coluna do grupo. As [siglas] sao as responsabilidades ("SM | PR");
+ * dirigente e auxiliar nao as levam, porque o cargo ja esta escrito ao lado.
+ */
+data class PreachingGroupMemberPdf(
+    val nome: String,
+    val siglas: String?,
+)
+
+/** Uma coluna da folha de grupos: o grupo e quem o compoe. */
+data class PreachingGroupSheetPdf(
+    val nome: String,
+    val dirigente: String?,
+    val auxiliar: String?,
+    val ponto: String?,
+    val membros: List<PreachingGroupMemberPdf>,
+)
+
+data class PreachingGroupsPdfData(
+    val congregacao: String,
+    val subtitulo: String?,
+    val fileSlug: String,
+    val grupos: List<PreachingGroupSheetPdf>,
+    val labels: PreachingPdfStrings,
+)
+
 interface PdfExportService {
     suspend fun exportMeetingProgram(data: MeetingProgramPdfData): Boolean
     suspend fun exportWeeklyProgram(data: WeeklyProgramPdfData): Boolean
@@ -192,6 +226,7 @@ interface PdfExportService {
     suspend fun exportMidweekAssignments(data: MidweekAssignmentsPdfData): Boolean
     suspend fun exportAvSchedule(data: AvSchedulePdfData): Boolean
     suspend fun exportPreachingProgram(data: PreachingProgramPdfData): Boolean
+    suspend fun exportPreachingGroups(data: PreachingGroupsPdfData): Boolean
 }
 
 expect fun createPdfExportService(): PdfExportService

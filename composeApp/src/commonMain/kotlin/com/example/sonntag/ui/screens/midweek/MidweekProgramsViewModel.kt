@@ -2,6 +2,7 @@ package com.example.sonntag.ui.screens.midweek
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.sonntag.data.repos.EventsRepository
 import com.example.sonntag.data.repos.MembersRepository
 import com.example.sonntag.data.repos.MeetingsRepository
 import com.example.sonntag.data.repos.MidweekProgramInput
@@ -9,7 +10,10 @@ import com.example.sonntag.data.repos.MidweekProgramsRepository
 import com.example.sonntag.data.repos.SettingsRepository
 import com.example.sonntag.data.sqldelight.Members
 import com.example.sonntag.data.sqldelight.Midweek_programs
+import com.example.sonntag.domain.usecases.CongregationEvent
+import com.example.sonntag.domain.usecases.EventSchedule
 import com.example.sonntag.domain.usecases.MeetingGenerator
+import com.example.sonntag.domain.usecases.toDomain
 import com.example.sonntag.domain.usecases.MwbParser
 import com.example.sonntag.domain.usecases.MwbWeek
 import com.example.sonntag.i18n.LocaleController
@@ -51,6 +55,8 @@ data class MidweekMeetingItem(
     val dateLabelShort: String,
     val dateLabelLong: String,
     val isPast: Boolean,
+    /** Preenchido quando um evento toma o lugar desta reuniao: ninguem e designado. */
+    val event: CongregationEvent? = null,
     val form: MidweekProgramInput = MidweekProgramInput(),
 ) {
     val summary: String? get() = form.leituraSemanal?.takeIf { it.isNotBlank() }
@@ -76,6 +82,7 @@ class MidweekProgramsViewModel(
     private val meetingsRepository: MeetingsRepository,
     private val membersRepository: MembersRepository,
     private val midweekProgramsRepository: MidweekProgramsRepository,
+    private val eventsRepository: EventsRepository,
     private val meetingGenerator: MeetingGenerator,
     private val mwbImportService: MwbImportService,
     private val settingsRepository: SettingsRepository,
@@ -116,6 +123,7 @@ class MidweekProgramsViewModel(
             meetingGenerator.generateNext12Months()
             val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
             val meetings = meetingsRepository.getByTypeOnce("WEEKDAY").sortedBy { it.data_ }
+            val events = EventSchedule(eventsRepository.getAllOnce().map { it.toDomain() })
 
             val items = meetings.map { m ->
                 val date = LocalDate.parse(m.data_)
@@ -129,6 +137,7 @@ class MidweekProgramsViewModel(
                     dateLabelShort = localeController.translator.longDate(date),
                     dateLabelLong = localeController.translator.longDateWithYear(date),
                     isPast = date < today,
+                    event = events.replacing(date, "WEEKDAY"),
                     form = programa?.toInput() ?: MidweekProgramInput(),
                 )
             }
@@ -206,7 +215,8 @@ class MidweekProgramsViewModel(
     private fun matchMeeting(meetings: List<MidweekMeetingItem>, week: MwbWeek): MidweekMeetingItem? {
         val start = runCatching { LocalDate(week.ano, week.mes, week.diaInicio) }.getOrNull() ?: return null
         val end = start.plus(DatePeriod(days = 6))
-        return meetings.firstOrNull { it.date >= start && it.date <= end }
+        // Semana tomada por um evento nao recebe programacao: nao ha reuniao para ela.
+        return meetings.firstOrNull { it.date >= start && it.date <= end && it.event == null }
     }
 
     /**
@@ -345,6 +355,13 @@ class MidweekProgramsViewModel(
             canticoMeio = p?.cantico_meio?.takeIf { it.isNotBlank() },
             vida = vida,
             estudo = estudo,
+            eventoLabel = m.event?.let {
+                localeController.translator(
+                    "Sem reunião · {0}: {1}",
+                    localeController.translator(it.tipo.label),
+                    it.nome,
+                )
+            },
             canticoFinal = p?.cantico_final?.takeIf { it.isNotBlank() },
             oracaoFinal = memberName(map, p?.oracao_final_id),
         )
@@ -358,6 +375,7 @@ class MidweekProgramsViewModel(
             ?: localeController.translator("Congregação")
         val designacoes = mutableListOf<MidweekAssignmentPdf>()
         monthMeetings().forEach { m ->
+            if (m.event != null) return@forEach
             val p = midweekProgramsRepository.getByMeetingIdOnce(m.id) ?: return@forEach
             fun pad(v: Int) = v.toString().padStart(2, '0')
             val dateStr = "${pad(m.date.dayOfMonth)}/${pad(m.date.monthNumber)}/${m.date.year}"

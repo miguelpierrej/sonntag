@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import com.example.sonntag.data.sqldelight.Members
 import com.example.sonntag.i18n.tr
 import com.example.sonntag.ui.components.EmptyState
+import com.example.sonntag.ui.components.EventAnnouncementCard
 import com.example.sonntag.ui.components.MonthNavigator
 import com.example.sonntag.ui.components.ScreenScaffold
 import org.koin.compose.koinInject
@@ -132,13 +133,23 @@ fun AvAssignmentsScreenContent() {
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         items(visibleMeetings, key = { it.meetingId }) { item ->
-                            MeetingCard(
-                                item = item,
-                                members = state.members,
-                                onRoleChanged = { role, memberId ->
-                                    viewModel.onRoleChanged(item.meetingId, role, memberId)
-                                },
-                            )
+                            val event = item.event
+                            if (event != null) {
+                                EventAnnouncementCard(
+                                    event = event,
+                                    dateLabel = item.dateLabel,
+                                    isPast = item.isPast,
+                                    modifier = Modifier.widthIn(max = CardMaxWidth),
+                                )
+                            } else {
+                                MeetingCard(
+                                    item = item,
+                                    members = state.members,
+                                    onRoleChanged = { role, memberId ->
+                                        viewModel.onRoleChanged(item.meetingId, role, memberId)
+                                    },
+                                )
+                            }
                         }
                     }
                 }

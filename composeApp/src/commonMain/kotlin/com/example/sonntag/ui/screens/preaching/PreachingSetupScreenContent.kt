@@ -8,7 +8,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -16,6 +18,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -34,6 +37,7 @@ import com.example.sonntag.data.sqldelight.Members
 import com.example.sonntag.data.sqldelight.Preaching_groups
 import com.example.sonntag.data.sqldelight.Preaching_spots
 import com.example.sonntag.i18n.tr
+import com.example.sonntag.ui.layout.LocalWindowSize
 import org.koin.compose.koinInject
 
 /**
@@ -52,6 +56,8 @@ fun PreachingSetupScreenContent() {
     var editingGroup by remember { mutableStateOf<Preaching_groups?>(null) }
     var showGroupDialog by remember { mutableStateOf(false) }
     var deletingGroup by remember { mutableStateOf<Preaching_groups?>(null) }
+    var addingToGroup by remember { mutableStateOf<Preaching_groups?>(null) }
+    var abertos by remember { mutableStateOf(emptySet<Long>()) }
 
     if (state.isLoading) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -111,6 +117,8 @@ fun PreachingSetupScreenContent() {
                 editingGroup = null
                 showGroupDialog = true
             },
+            secondaryLabel = tr("Exportar lista"),
+            onSecondary = { viewModel.exportGroupsPdf() }.takeIf { state.groups.isNotEmpty() },
         )
 
         if (state.groups.isEmpty()) {
@@ -146,6 +154,30 @@ fun PreachingSetupScreenContent() {
                     }) { Text(tr("Editar")) }
                     TextButton(onClick = { deletingGroup = group }) { Text(tr("Excluir")) }
                 }
+
+                // O botao ocupa a linha inteira: dentro da coluna do nome, com os
+                // botoes de acao ao lado, o texto saia cortado no celular.
+                TextButton(
+                    onClick = { abertos = if (group.id in abertos) abertos - group.id else abertos + group.id },
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                ) {
+                    Text(
+                        if (group.id in abertos) {
+                            tr("Ocultar publicadores")
+                        } else {
+                            tr("Publicadores ({0})", state.membrosPorGrupo[group.id].orEmpty().size)
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+
+                if (group.id in abertos) {
+                    GroupMembers(
+                        membros = state.membrosPorGrupo[group.id].orEmpty(),
+                        onRemove = { viewModel.removeMemberFromGroup(group.id, it) },
+                        onAdd = { addingToGroup = group },
+                    )
+                }
                 HorizontalDivider()
             }
         }
@@ -180,6 +212,20 @@ fun PreachingSetupScreenContent() {
                 if (editando == null) viewModel.addGroup(nome, dirigente, auxiliar, spot)
                 else viewModel.updateGroup(editando.id, nome, dirigente, auxiliar, spot)
                 showGroupDialog = false
+            },
+        )
+    }
+
+    addingToGroup?.let { group ->
+        AddMemberDialog(
+            grupo = group,
+            members = state.members,
+            grupoDoMembro = state.grupoDoMembro,
+            grupos = state.groups,
+            onDismiss = { addingToGroup = null },
+            onConfirm = { memberId ->
+                viewModel.addMemberToGroup(group.id, memberId)
+                addingToGroup = null
             },
         )
     }
@@ -220,21 +266,127 @@ private fun SectionHeader(
     description: String,
     actionLabel: String,
     onAction: () -> Unit,
+    secondaryLabel: String? = null,
+    onSecondary: (() -> Unit)? = null,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Text(
-                description,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+    // No celular os botoes nao cabem ao lado do titulo: descem uma linha, senao o
+    // nome da secao sai quebrado letra a letra.
+    val compacto = LocalWindowSize.current.isCompact
+
+    val botoes: @Composable () -> Unit = {
+        if (secondaryLabel != null && onSecondary != null) {
+            OutlinedButton(onClick = onSecondary) { Text(secondaryLabel) }
+            Spacer(modifier = Modifier.width(8.dp))
         }
         Button(onClick = onAction) { Text(actionLabel) }
     }
+
+    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(
+                    description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (!compacto) botoes()
+        }
+        if (compacto) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) { botoes() }
+        }
+    }
+}
+
+/** Publicadores de um grupo, abertos abaixo da linha do grupo. */
+@Composable
+private fun GroupMembers(
+    membros: List<Members>,
+    onRemove: (Long) -> Unit,
+    onAdd: () -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth().padding(start = 16.dp, bottom = 8.dp)) {
+        if (membros.isEmpty()) {
+            Text(
+                tr("Nenhum publicador neste grupo"),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            membros.forEach { membro ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        membro.nomeComSiglas(),
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    TextButton(onClick = { onRemove(membro.id) }) { Text(tr("Remover")) }
+                }
+            }
+        }
+        TextButton(onClick = onAdd, contentPadding = PaddingValues(vertical = 4.dp)) {
+            Text(tr("Adicionar publicador"))
+        }
+    }
+}
+
+/**
+ * Escolhe quem entra no grupo. Quem ja esta em outro aparece com o grupo atual ao
+ * lado: escolher move a pessoa, porque ninguem pertence a dois grupos.
+ */
+@Composable
+private fun AddMemberDialog(
+    grupo: Preaching_groups,
+    members: List<Members>,
+    grupoDoMembro: Map<Long, Long>,
+    grupos: List<Preaching_groups>,
+    onDismiss: () -> Unit,
+    onConfirm: (Long) -> Unit,
+) {
+    var escolhido by remember(grupo.id) { mutableStateOf<Long?>(null) }
+    val nomeDoGrupo = grupos.associate { it.id to it.nome }
+    val opcoes: List<Pair<Long, String>> = members
+        .filter { grupoDoMembro[it.id] != grupo.id }
+        .map { membro ->
+            val outro = grupoDoMembro[membro.id]?.let { nomeDoGrupo[it] }
+            val texto = if (outro == null) membro.nomeCompleto() else "${membro.nomeCompleto()} · $outro"
+            membro.id to texto
+        }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(tr("Adicionar publicador")) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    tr("Cada publicador pertence a um grupo só; escolher aqui tira do grupo anterior."),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (opcoes.isEmpty()) {
+                    Text(tr("Todos os publicadores já estão neste grupo"))
+                } else {
+                    MemberSearchField(
+                        label = tr("Publicador"),
+                        options = opcoes,
+                        onSelected = { escolhido = it },
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { escolhido?.let(onConfirm) },
+                enabled = escolhido != null,
+            ) { Text(tr("Adicionar")) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(tr("Cancelar")) } },
+    )
 }
 
 @Composable

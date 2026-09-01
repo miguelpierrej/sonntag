@@ -15,6 +15,7 @@ import com.example.sonntag.pdf.render.TopDownCanvas
 import com.example.sonntag.pdf.render.MidweekProgramLayout
 import com.example.sonntag.pdf.render.PdfBoxCanvas
 import com.example.sonntag.pdf.render.PreachingCalendarLayout
+import com.example.sonntag.pdf.render.PreachingGroupsLayout
 import org.apache.pdfbox.pdmodel.PDDocument
 import org.apache.pdfbox.pdmodel.PDPage
 import org.apache.pdfbox.pdmodel.PDPageContentStream
@@ -100,8 +101,13 @@ private class PdfExportServiceJvm : PdfExportService {
     }
 
     override suspend fun exportPreachingProgram(data: PreachingProgramPdfData): Boolean {
-        val path = chooseSavePath("${'$'}{data.fileSlug}.pdf", data.labels.dialogTitle) ?: return false
+        val path = chooseSavePath("${data.fileSlug}.pdf", data.labels.dialogTitle) ?: return false
         return runCatching { writePreachingProgramPdf(path, data) }.isSuccess
+    }
+
+    override suspend fun exportPreachingGroups(data: PreachingGroupsPdfData): Boolean {
+        val path = chooseSavePath("${data.fileSlug}.pdf", data.labels.dialogTitle) ?: return false
+        return runCatching { writePreachingGroupsPdf(path, data) }.isSuccess
     }
 
     override suspend fun exportAvSchedule(data: AvSchedulePdfData): Boolean {
@@ -287,6 +293,16 @@ private class PdfExportServiceJvm : PdfExportService {
         val document = PDDocument()
         PdfBoxCanvas(document, PDRectangle.A4).use { canvas ->
             PreachingCalendarLayout(data, currentTimestamp()).draw(canvas)
+        }
+        document.save(path)
+        document.close()
+        openInDesktop(File(path))
+    }
+
+    private fun writePreachingGroupsPdf(path: String, data: PreachingGroupsPdfData) {
+        val document = PDDocument()
+        PdfBoxCanvas(document).use { canvas ->
+            PreachingGroupsLayout(data, currentTimestamp()).draw(canvas)
         }
         document.save(path)
         document.close()

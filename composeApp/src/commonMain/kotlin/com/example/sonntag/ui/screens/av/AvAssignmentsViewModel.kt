@@ -3,13 +3,17 @@ package com.example.sonntag.ui.screens.av
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.sonntag.data.repos.AvAssignmentsRepository
+import com.example.sonntag.data.repos.EventsRepository
 import com.example.sonntag.data.repos.MeetingsRepository
 import com.example.sonntag.data.repos.MembersRepository
 import com.example.sonntag.data.repos.MidweekProgramsRepository
 import com.example.sonntag.data.repos.SettingsRepository
 import com.example.sonntag.data.repos.WeekendProgramsRepository
 import com.example.sonntag.data.sqldelight.Members
+import com.example.sonntag.domain.usecases.CongregationEvent
+import com.example.sonntag.domain.usecases.EventSchedule
 import com.example.sonntag.domain.usecases.MeetingGenerator
+import com.example.sonntag.domain.usecases.toDomain
 import com.example.sonntag.i18n.LocaleController
 import com.example.sonntag.pdf.AvScheduleLine
 import com.example.sonntag.pdf.AvSchedulePdfData
@@ -48,6 +52,8 @@ data class AvMeetingItem(
     val isWeekend: Boolean,
     val dateLabel: String,
     val isPast: Boolean,
+    /** Preenchido quando um evento toma o lugar desta reuniao: ninguem e designado. */
+    val event: CongregationEvent? = null,
     val assignments: Map<AvRole, Long?> = emptyMap(),
     /**
      * Funcoes que cada membro ja ocupa na programacao desta mesma reuniao
@@ -90,6 +96,7 @@ class AvAssignmentsViewModel(
     private val meetingGenerator: MeetingGenerator,
     private val pdfExportService: PdfExportService,
     private val localeController: LocaleController,
+    private val eventsRepository: EventsRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AvAssignmentsUiState())
@@ -121,6 +128,7 @@ class AvAssignmentsViewModel(
             meetingGenerator.generateNext12Months()
             val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
             val translator = localeController.translator
+            val events = EventSchedule(eventsRepository.getAllOnce().map { it.toDomain() })
 
             val items = meetingsRepository.getAllOnce()
                 .sortedWith(compareBy({ it.data_ }, { it.hora }))
@@ -137,6 +145,7 @@ class AvAssignmentsViewModel(
                         isWeekend = isWeekend,
                         dateLabel = translator.longDate(date),
                         isPast = date < today,
+                        event = events.replacing(date, meeting.tipo),
                         programRoles = programRolesFor(meeting.id, isWeekend),
                         assignments = mapOf(
                             AvRole.AUDIO to saved?.audio_id,
@@ -271,6 +280,9 @@ class AvAssignmentsViewModel(
                     plataforma = names(item, AvRole.PLATAFORMA1, AvRole.PLATAFORMA2),
                     microfones = names(item, AvRole.MICROFONE1, AvRole.MICROFONE2),
                     acomodadores = names(item, AvRole.ACOMODADOR1, AvRole.ACOMODADOR2),
+                    eventoLabel = item.event?.let {
+                        translator("Sem reunião · {0}: {1}", translator(it.tipo.label), it.nome)
+                    },
                 )
             },
             labels = labels,

@@ -21,6 +21,9 @@ import com.example.sonntag.ui.layout.WindowSize
 import com.example.sonntag.ui.screens.av.AvAssignmentsScreenContent
 import com.example.sonntag.ui.screens.cleaning.CleaningScreenContent
 import com.example.sonntag.ui.screens.datatransfer.DataTransferScreenContent
+import com.example.sonntag.ui.screens.events.EventsScreenContent
+import com.example.sonntag.ui.screens.members.MembersScreenContent
+import com.example.sonntag.ui.screens.settings.SettingsScreenContent
 import com.example.sonntag.ui.screens.preaching.PreachingScreenContent
 import com.example.sonntag.ui.screens.midweek.MidweekProgramsScreenContent
 import com.example.sonntag.ui.screens.weekend.WeekendProgramsScreenContent
@@ -34,7 +37,7 @@ import java.io.File
  * Renderiza a UI fora da tela em larguras de celular e tablet. Permite conferir o
  * layout responsivo sem emulador — o mesmo codigo que roda no Android.
  *
- * Uso: renderScreens <diretorio> [painel|fim-de-semana|meio-de-semana]
+ * Uso: renderScreens <diretorio> [painel|fim-de-semana|meio-de-semana|eventos|membros|configuracoes]
  */
 fun main(args: Array<String>) {
     startKoin { modules(appModule) }
@@ -101,6 +104,9 @@ private fun Conteudo(tela: String, larguraDp: Int) {
                     "av" -> AvAssignmentsScreenContent()
                     "limpeza" -> CleaningScreenContent()
                     "dados" -> DataTransferScreenContent()
+                    "eventos" -> EventsScreenContent()
+                    "membros" -> MembersScreenContent()
+                    "configuracoes" -> SettingsScreenContent()
                     "pregacao" -> PreachingScreenContent()
                 }
             }

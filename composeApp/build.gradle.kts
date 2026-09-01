@@ -288,6 +288,14 @@ tasks.register<JavaExec>("simulateSync") {
     )
 }
 
+tasks.register<JavaExec>("checkMembersFlow") {
+    val jvmMain = kotlin.jvm().compilations.getByName("main")
+    dependsOn(jvmMain.compileTaskProvider)
+    classpath = jvmMain.output.allOutputs + jvmMain.runtimeDependencyFiles
+    mainClass.set("com.example.sonntag.tools.CheckMembersFlowKt")
+    args(System.getenv("OUT") ?: "/tmp")
+}
+
 tasks.register<JavaExec>("checkGenerator") {
     val jvmMain = kotlin.jvm().compilations.getByName("main")
     dependsOn(jvmMain.compileTaskProvider)

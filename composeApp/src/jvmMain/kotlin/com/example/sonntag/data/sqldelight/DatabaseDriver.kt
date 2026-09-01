@@ -1,7 +1,8 @@
 package com.example.sonntag.data.sqldelight
 
+import app.cash.sqldelight.Query
 import app.cash.sqldelight.db.SqlDriver
-import app.cash.sqldelight.driver.jdbc.asJdbcDriver
+import app.cash.sqldelight.driver.jdbc.JdbcDriver
 import com.example.sonntag.sync.PREF_DEVICE_ID
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
@@ -10,6 +11,52 @@ import java.sql.Connection
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.UUID
+import javax.sql.DataSource
+
+/**
+ * Driver do desktop que **avisa** quem observa uma tabela.
+ *
+ * O `asJdbcDriver()` que vem no SQLDelight 2.0.2 nao faz isso — os tres metodos de
+ * escuta dele sao vazios, com o comentario "JDBC Driver is not set up for observing
+ * queries by default". Com ele, as telas que acompanham uma consulta (membros,
+ * audio/video, programas) so mudavam ao reabrir o app: o Flow emitia uma vez e nunca
+ * mais. No Android o driver ja avisa sozinho, entao o defeito era so aqui.
+ */
+private class ObservableJdbcDriver(private val dataSource: DataSource) : JdbcDriver() {
+
+    private val listeners = linkedMapOf<String, MutableSet<Query.Listener>>()
+
+    override fun getConnection(): Connection = dataSource.connection
+
+    override fun closeConnection(connection: Connection) = connection.close()
+
+    override fun addListener(vararg queryKeys: String, listener: Query.Listener) {
+        synchronized(listeners) {
+            queryKeys.forEach { listeners.getOrPut(it) { linkedSetOf() } += listener }
+        }
+    }
+
+    override fun removeListener(vararg queryKeys: String, listener: Query.Listener) {
+        synchronized(listeners) {
+            queryKeys.forEach { listeners[it]?.remove(listener) }
+        }
+    }
+
+    override fun notifyListeners(vararg queryKeys: String) {
+        // Copia antes de avisar: quem e avisado pode se desinscrever na hora.
+        val avisar = synchronized(listeners) { queryKeys.flatMap { listeners[it].orEmpty() }.toSet() }
+        avisar.forEach { it.queryResultsChanged() }
+    }
+}
+
+/** Abre o banco em [jdbcUrl] com o driver que avisa as telas. */
+internal fun observableDriver(jdbcUrl: String): Pair<SqlDriver, HikariDataSource> {
+    val fonte = HikariDataSource(HikariConfig().apply {
+        this.jdbcUrl = jdbcUrl
+        maximumPoolSize = 1
+    })
+    return ObservableJdbcDriver(fonte) to fonte
+}
 
 /** Tabelas que viajam entre instalacoes e por isso carregam as colunas de sincronizacao. */
 private val SYNC_TABLES = listOf(
@@ -134,12 +181,7 @@ actual fun createDatabaseDriver(): SqlDriver {
     val dbFile = File(dbDir, "data.db")
     val dbUrl = "jdbc:sqlite:${dbFile.absolutePath}"
 
-    val config = HikariConfig().apply {
-        jdbcUrl = dbUrl
-        maximumPoolSize = 1
-    }
-    val dataSource = HikariDataSource(config)
-    val driver = dataSource.asJdbcDriver()
+    val (driver, dataSource) = observableDriver(dbUrl)
 
     val shouldCreateSchema = dataSource.connection.use { connection ->
         connection.prepareStatement(

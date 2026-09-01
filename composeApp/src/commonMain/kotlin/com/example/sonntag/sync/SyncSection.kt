@@ -12,11 +12,12 @@ enum class SyncSection(val id: String, val label: String, val tables: List<Strin
     MEIO_DE_SEMANA("meio_de_semana", "Programas de meio de semana", listOf("midweek_programs")),
     AUDIO_VIDEO("audio_video", "Áudio/vídeo e acomodadores", listOf("av_assignments")),
     LIMPEZA("limpeza", "Limpeza", listOf("cleaning_groups", "cleaning_assignments")),
+    EVENTOS("eventos", "Eventos", listOf("events")),
     PREGACAO(
         "pregacao",
         "Pregação",
         listOf(
-            "preaching_spots", "preaching_groups",
+            "preaching_spots", "preaching_groups", "preaching_group_members",
             "preaching_templates", "preaching_shifts", "preaching_notes",
         ),
     );

@@ -53,6 +53,7 @@ import com.example.sonntag.ui.components.ScreenScaffold
 import com.example.sonntag.sync.IncomingPackage
 import com.example.sonntag.ui.screens.cleaninggroups.CleaningGroupsScreenContent
 import com.example.sonntag.ui.screens.datatransfer.DataTransferScreenContent
+import com.example.sonntag.ui.screens.events.EventsScreenContent
 import org.koin.compose.koinInject
 
 private val ContentMaxWidth = 640.dp
@@ -72,11 +73,12 @@ fun SettingsScreenContent() {
     val tab = remember { mutableStateOf(0) }
     // Com um pacote esperando, a aba de Dados e o unico destino que faz sentido.
     LaunchedEffect(IncomingPackage.bytes) {
-        if (IncomingPackage.bytes != null) tab.value = 2
+        if (IncomingPackage.bytes != null) tab.value = 3
     }
     val subtitle = when (tab.value) {
         0 -> tr("Dados gerais e dias de reunião")
         1 -> tr("Grupos de limpeza")
+        2 -> tr("Semanas sem reunião por assembleia, congresso ou comemoração")
         else -> tr("Exportar e importar entre instalações")
     }
 
@@ -85,7 +87,7 @@ fun SettingsScreenContent() {
         subtitle = subtitle,
     ) {
         TabStrip(
-            tabs = listOf(tr("Geral"), tr("Grupos de limpeza"), tr("Dados")),
+            tabs = listOf(tr("Geral"), tr("Grupos de limpeza"), tr("Eventos"), tr("Dados")),
             selectedIndex = tab.value,
             onSelected = { tab.value = it },
         )
@@ -95,6 +97,7 @@ fun SettingsScreenContent() {
         when (tab.value) {
             0 -> SettingsGeneralContent()
             1 -> CleaningGroupsScreenContent()
+            2 -> EventsScreenContent()
             else -> DataTransferScreenContent()
         }
     }

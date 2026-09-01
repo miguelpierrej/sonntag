@@ -69,6 +69,14 @@ class AvScheduleLayout(
             canvas.text("${line.dataLabel} ${line.tipoLabel}", marginLeft + 8f, y, dateStyle)
             y -= dateToHeaderGap
 
+            // Reuniao substituida por evento: o anuncio ocupa a faixa das funcoes.
+            val anuncio = line.eventoLabel
+            if (anuncio != null) {
+                canvas.text(anuncio, marginLeft, y, TextStyle(11f, DocColors.Muted, FontStyle.ITALIC))
+                y -= lineHeight + blockGap
+                return@forEach
+            }
+
             val headers = listOf(
                 data.labels.audioVideo,
                 data.labels.plataforma,

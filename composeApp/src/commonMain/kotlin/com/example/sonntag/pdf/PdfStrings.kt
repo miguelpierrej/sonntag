@@ -10,6 +10,8 @@ data class CommonPdfStrings(
     val aDefinir: String,
     val discursoADefinir: String,
     val congregacao: String,
+    /** Rotulo da linha que substitui as designacoes numa semana de evento. */
+    val evento: String,
 ) {
     /** "Gerado em 02/07/2026 08:46" */
     fun geradoEm(timestamp: String): String = "$geradoEm $timestamp"
@@ -52,6 +54,7 @@ fun commonPdfStrings(lang: AppLanguage): CommonPdfStrings = when (lang) {
         aDefinir = "Por definir",
         discursoADefinir = "Discurso por definir",
         congregacao = "Congregación",
+        evento = "Evento",
     )
     AppLanguage.PT_BR -> CommonPdfStrings(
         geradoEm = "Gerado em",
@@ -60,6 +63,7 @@ fun commonPdfStrings(lang: AppLanguage): CommonPdfStrings = when (lang) {
         aDefinir = "A definir",
         discursoADefinir = "Discurso a definir",
         congregacao = "Congregação",
+        evento = "Evento",
     )
 }
 
@@ -223,6 +227,16 @@ data class PreachingPdfStrings(
     val dirigente: String,
     val vazio: String,
     val dialogTitle: String,
+    /** Folha de grupos: uma coluna por grupo, com quem o compoe. */
+    val tituloGrupos: String,
+    val auxiliar: String,
+    val ponto: String,
+    val semGrupos: String,
+    val semMembros: String,
+    /** Marca a coluna que continua na pagina seguinte. */
+    val continuacao: String,
+    /** Rodape que explica AN, SM e PR. */
+    val legendaSiglas: String,
 )
 
 fun preachingPdfStrings(lang: AppLanguage): PreachingPdfStrings = when (lang) {
@@ -235,6 +249,13 @@ fun preachingPdfStrings(lang: AppLanguage): PreachingPdfStrings = when (lang) {
         dirigente = "Conductor",
         vazio = "Ningún turno en este mes.",
         dialogTitle = "Guardar como",
+        tituloGrupos = "Grupos de Predicación",
+        auxiliar = "Auxiliar",
+        ponto = "Punto de encuentro",
+        semGrupos = "Ningún grupo registrado.",
+        semMembros = "Sin publicadores",
+        continuacao = "(cont.)",
+        legendaSiglas = "AN = Anciano   ·   SM = Siervo ministerial   ·   PR = Precursor",
     )
     AppLanguage.PT_BR -> PreachingPdfStrings(
         common = commonPdfStrings(lang),
@@ -245,6 +266,13 @@ fun preachingPdfStrings(lang: AppLanguage): PreachingPdfStrings = when (lang) {
         dirigente = "Dirigente",
         vazio = "Nenhum turno neste mês.",
         dialogTitle = "Salvar como",
+        tituloGrupos = "Grupos de Pregação",
+        auxiliar = "Auxiliar",
+        ponto = "Ponto de encontro",
+        semGrupos = "Nenhum grupo cadastrado.",
+        semMembros = "Sem publicadores",
+        continuacao = "(cont.)",
+        legendaSiglas = "AN = Ancião   ·   SM = Servo ministerial   ·   PR = Pioneiro",
     )
 }
 

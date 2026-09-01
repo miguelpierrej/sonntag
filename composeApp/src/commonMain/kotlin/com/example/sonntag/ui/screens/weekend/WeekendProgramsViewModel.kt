@@ -2,6 +2,7 @@ package com.example.sonntag.ui.screens.weekend
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.sonntag.data.repos.EventsRepository
 import com.example.sonntag.data.repos.MembersRepository
 import com.example.sonntag.data.repos.MeetingsRepository
 import com.example.sonntag.data.repos.SettingsRepository
@@ -9,7 +10,10 @@ import com.example.sonntag.data.repos.TalkOutlinesRepository
 import com.example.sonntag.data.repos.WeekendProgramsRepository
 import com.example.sonntag.data.sqldelight.Members
 import com.example.sonntag.domain.models.TalkOutline
+import com.example.sonntag.domain.usecases.CongregationEvent
+import com.example.sonntag.domain.usecases.EventSchedule
 import com.example.sonntag.domain.usecases.MeetingGenerator
+import com.example.sonntag.domain.usecases.toDomain
 import com.example.sonntag.imports.S34ImportService
 import com.example.sonntag.pdf.MeetingProgramPdfData
 import com.example.sonntag.pdf.MonthlyProgramPdfData
@@ -46,6 +50,8 @@ data class WeekendMeetingItem(
     val dateLabelShort: String,
     val dateLabelLong: String,
     val isPast: Boolean,
+    /** Preenchido quando um evento toma o lugar desta reuniao: ninguem e designado. */
+    val event: CongregationEvent? = null,
     val tituloDiscurso: String = "",
     val oradorId: Long? = null,
     val oradorNome: String = "",
@@ -89,6 +95,7 @@ class WeekendProgramsViewModel(
     private val localeController: com.example.sonntag.i18n.LocaleController,
     private val talkOutlinesRepository: TalkOutlinesRepository,
     private val s34ImportService: S34ImportService,
+    private val eventsRepository: EventsRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(WeekendProgramsUiState())
@@ -128,6 +135,7 @@ class WeekendProgramsViewModel(
             meetingGenerator.generateNext12Months()
             val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
             val meetings = meetingsRepository.getByTypeOnce("WEEKEND").sortedBy { it.data_ }
+            val events = EventSchedule(eventsRepository.getAllOnce().map { it.toDomain() })
 
             val membrosPorId = _uiState.value.members.associateBy { it.id }
             val items = meetings.map { m ->
@@ -142,6 +150,7 @@ class WeekendProgramsViewModel(
                     dateLabelShort = localeController.translator.longDate(date),
                     dateLabelLong = localeController.translator.longDateWithYear(date),
                     isPast = date < today,
+                    event = events.replacing(date, "WEEKEND"),
                     tituloDiscurso = p?.titulo_discurso.orEmpty(),
                     oradorId = p?.orador_id,
                     oradorNome = p?.orador_id?.let { membrosPorId[it] }
@@ -344,6 +353,7 @@ class WeekendProgramsViewModel(
         val meetings = meetingsRepository
             .getByDateRangeOnce(monthStart.toString(), monthEnd.toString())
             .filter { it.tipo == "WEEKEND" }
+        val events = EventSchedule(eventsRepository.getAllOnce().map { it.toDomain() })
         val lines = meetings.sortedBy { it.data_ }.map { meeting ->
             val program = weekendProgramsRepository.getByMeetingIdOnce(meeting.id)
             val date = LocalDate.parse(meeting.data_)
@@ -355,6 +365,13 @@ class WeekendProgramsViewModel(
                 presidente = memberNameOrNull(program?.presidente_id, membersMap),
                 dirigenteEstudo = memberNameOrNull(program?.dirigente_id, membersMap),
                 leitor = memberNameOrNull(program?.leitor_id, membersMap),
+                eventoLabel = events.replacing(date, meeting.tipo)?.let {
+                    localeController.translator(
+                        "Sem reunião · {0}: {1}",
+                        localeController.translator(it.tipo.label),
+                        it.nome,
+                    )
+                },
             )
         }
 

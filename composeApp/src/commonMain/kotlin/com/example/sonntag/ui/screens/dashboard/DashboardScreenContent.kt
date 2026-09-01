@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.CleaningServices
+import androidx.compose.material.icons.outlined.Event
 import androidx.compose.material.icons.outlined.Pending
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -43,8 +44,11 @@ import org.koin.compose.koinInject
 /** Quantidade maxima de reunioes pendentes listadas dentro do card. */
 private const val MAX_PENDING_PREVIEW = 3
 
-/** Abaixo disso os tres cards ficam estreitos demais e o titulo quebra letra a letra. */
-private val MIN_WIDTH_FOR_ROW = 720.dp
+/** Abaixo disso o card fica estreito demais e o titulo quebra letra a letra. */
+private val MIN_CARD_WIDTH = 240.dp
+
+/** Quantos eventos futuros cabem no card. */
+private const val MAX_EVENTS_PREVIEW = 3
 
 @Composable
 fun DashboardScreenContent(onNavigate: (String) -> Unit = {}) {
@@ -61,7 +65,10 @@ fun DashboardScreenContent(onNavigate: (String) -> Unit = {}) {
         // Medimos a largura que sobra para o conteudo, nao a da janela: no tablet em
         // pe a gaveta ja consumiu 240dp e tres colunas nao cabem mais.
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-        ResponsiveCards(stacked = maxWidth < MIN_WIDTH_FOR_ROW) { cardModifier ->
+        // O card de eventos so existe quando ha eventos, e por isso entra na conta da
+        // largura minima: com quatro cards a linha precisa de mais espaco.
+        val cardCount = if (state.upcomingEvents.isEmpty()) 3 else 4
+        ResponsiveCards(stacked = maxWidth < MIN_CARD_WIDTH * cardCount) { cardModifier ->
             DashboardCard(
                 title = tr("Próxima reunião"),
                 icon = Icons.Outlined.CalendarMonth,
@@ -85,6 +92,15 @@ fun DashboardScreenContent(onNavigate: (String) -> Unit = {}) {
                 onClick = state.pendingItems.firstOrNull()?.let { first -> { onNavigate(first.navTarget) } },
             ) {
                 PendingContent(state.pendingItems, state.pendingWindowDays, state.isLoading)
+            }
+            if (state.upcomingEvents.isNotEmpty()) {
+                DashboardCard(
+                    title = tr("Próximos eventos"),
+                    icon = Icons.Outlined.Event,
+                    modifier = cardModifier,
+                ) {
+                    UpcomingEventsContent(state.upcomingEvents)
+                }
             }
         }
         }
@@ -134,10 +150,10 @@ private fun CleaningContent(cleaning: CleaningWeekInfo?, isLoading: Boolean) {
         return
     }
 
-    if (cleaning.groupName != null) {
-        CardHighlight(cleaning.groupName)
-    } else {
-        CardHighlight(tr("Sem grupo atribuído"), muted = true)
+    when {
+        cleaning.eventLabel != null -> CardHighlight(cleaning.eventLabel, muted = true)
+        cleaning.groupName != null -> CardHighlight(cleaning.groupName)
+        else -> CardHighlight(tr("Sem grupo atribuído"), muted = true)
     }
     CardCaption(cleaning.periodText)
     Spacer(modifier = Modifier.height(12.dp))
@@ -174,6 +190,20 @@ private fun PendingContent(items: List<PendingProgramItem>, windowDays: Int, isL
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+@Composable
+private fun UpcomingEventsContent(items: List<UpcomingEventItem>) {
+    val first = items.first()
+    Badge(text = first.relativeLabel)
+    Spacer(modifier = Modifier.height(10.dp))
+    CardHighlight(first.nome)
+    CardCaption("${first.dateLabel} • ${first.typeLabel}")
+    val rest = items.drop(1).take(MAX_EVENTS_PREVIEW - 1)
+    if (rest.isNotEmpty()) {
+        Spacer(modifier = Modifier.height(12.dp))
+        rest.forEach { DetailRow(label = it.typeLabel, value = it.dateLabel) }
     }
 }
 

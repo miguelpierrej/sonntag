@@ -79,6 +79,8 @@ class WeekendMonthlyLayout(
 
     private fun rows(line: PdfMeetingLine, labels: WeekendPdfStrings): List<Triple<String, String, Boolean>> {
         val vazio = labels.common.aDefinir
+        // Semana de evento: uma linha so, no lugar dos cinco campos que ninguem preenche.
+        line.eventoLabel?.let { return listOf(Triple(labels.common.evento, it, true)) }
         return listOf(
             Triple(labels.titulo, line.tituloDiscurso ?: labels.common.discursoADefinir, line.tituloDiscurso == null),
             Triple(labels.orador, line.orador ?: vazio, line.orador == null),

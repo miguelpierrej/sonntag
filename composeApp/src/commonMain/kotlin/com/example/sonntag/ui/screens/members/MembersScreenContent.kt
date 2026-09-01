@@ -2,6 +2,7 @@ package com.example.sonntag.ui.screens.members
 
 import com.example.sonntag.i18n.tr
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.PersonOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -26,10 +28,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.example.sonntag.data.repos.Responsabilidades
 import com.example.sonntag.data.sqldelight.Members
 import com.example.sonntag.ui.components.EmptyState
 import com.example.sonntag.ui.components.ScreenScaffold
@@ -170,12 +175,12 @@ fun MembersScreenContent() {
         MemberFormDialog(
             initial = editingMember.value,
             onDismiss = { showFormDialog.value = false },
-            onConfirm = { nome, sobrenome ->
+            onConfirm = { nome, sobrenome, responsabilidades ->
                 val editing = editingMember.value
                 if (editing == null) {
-                    viewModel.addMember(nome, sobrenome)
+                    viewModel.addMember(nome, sobrenome, responsabilidades)
                 } else {
-                    viewModel.updateMember(editing.id, nome, sobrenome)
+                    viewModel.updateMember(editing.id, nome, sobrenome, responsabilidades)
                 }
                 showFormDialog.value = false
             },
@@ -208,10 +213,13 @@ fun MembersScreenContent() {
 private fun MemberFormDialog(
     initial: Members?,
     onDismiss: () -> Unit,
-    onConfirm: (String, String) -> Unit,
+    onConfirm: (String, String, Responsabilidades) -> Unit,
 ) {
     val nome = remember(initial?.id) { mutableStateOf(initial?.nome.orEmpty()) }
     val sobrenome = remember(initial?.id) { mutableStateOf(initial?.sobrenome.orEmpty()) }
+    var responsabilidades by remember(initial?.id) {
+        mutableStateOf(initial?.let { Responsabilidades.de(it) } ?: Responsabilidades())
+    }
     val isValid = nome.value.trim().isNotBlank() && sobrenome.value.trim().isNotBlank()
 
     AlertDialog(
@@ -231,11 +239,32 @@ private fun MemberFormDialog(
                     label = { Text(tr("Sobrenome")) },
                     modifier = Modifier.fillMaxWidth(),
                 )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    tr("Responsabilidades (opcional)"),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                ResponsabilidadeCheck(
+                    label = tr("Ancião"),
+                    checked = responsabilidades.anciao,
+                    onChange = { responsabilidades = responsabilidades.copy(anciao = it) },
+                )
+                ResponsabilidadeCheck(
+                    label = tr("Servo ministerial"),
+                    checked = responsabilidades.servoMinisterial,
+                    onChange = { responsabilidades = responsabilidades.copy(servoMinisterial = it) },
+                )
+                ResponsabilidadeCheck(
+                    label = tr("Pioneiro"),
+                    checked = responsabilidades.pioneiro,
+                    onChange = { responsabilidades = responsabilidades.copy(pioneiro = it) },
+                )
             }
         },
         confirmButton = {
             TextButton(
-                onClick = { onConfirm(nome.value, sobrenome.value) },
+                onClick = { onConfirm(nome.value, sobrenome.value, responsabilidades) },
                 enabled = isValid,
             ) {
                 Text(tr("Salvar"))
@@ -247,4 +276,16 @@ private fun MemberFormDialog(
             }
         },
     )
+}
+
+/** Uma responsabilidade do publicador: caixa e rotulo, os dois clicaveis. */
+@Composable
+private fun ResponsabilidadeCheck(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable { onChange(!checked) },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Checkbox(checked = checked, onCheckedChange = onChange)
+        Text(label, style = MaterialTheme.typography.bodyMedium)
+    }
 }

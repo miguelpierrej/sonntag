@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import com.example.sonntag.data.sqldelight.Members
 import com.example.sonntag.domain.models.TalkOutline
 import com.example.sonntag.ui.components.EmptyState
+import com.example.sonntag.ui.components.EventAnnouncementCard
 import com.example.sonntag.ui.components.MonthNavigator
 import com.example.sonntag.ui.components.ScreenScaffold
 import com.example.sonntag.ui.layout.LocalWindowSize
@@ -78,6 +79,10 @@ private val MIN_WIDTH_FOR_TWO_COLUMNS = 520.dp
 fun WeekendProgramsScreenContent() {
     val viewModel = koinInject<WeekendProgramsViewModel>()
     val state by viewModel.uiState.collectAsState()
+
+    // Recarrega ao voltar para a tela: um evento cadastrado em Configuracoes muda
+    // quais semanas pedem designacao.
+    LaunchedEffect(Unit) { viewModel.load() }
 
     val visibleMeetings = state.allMeetings.filter {
         it.year == state.visibleYear && it.month == state.visibleMonth
@@ -166,18 +171,28 @@ fun WeekendProgramsScreenContent() {
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 items(visibleMeetings, key = { it.id }) { item ->
-                    MeetingCard(
-                        item = item,
-                        talkOutlines = state.talkOutlines,
-                        members = state.members,
-                        selected = item.id == state.selectedMeetingId,
-                        onSelect = { viewModel.selectMeeting(item.id) },
-                        onTituloChanged = { viewModel.onTituloChanged(item.id, it) },
-                        onOradorChanged = { id, nome -> viewModel.onOradorChanged(item.id, id, nome) },
-                        onPresidenteChanged = { viewModel.onPresidenteChanged(item.id, it) },
-                        onDirigenteChanged = { viewModel.onDirigenteChanged(item.id, it) },
-                        onLeitorChanged = { viewModel.onLeitorChanged(item.id, it) },
-                    )
+                    val event = item.event
+                    if (event != null) {
+                        EventAnnouncementCard(
+                            event = event,
+                            dateLabel = item.dateLabelShort,
+                            isPast = item.isPast,
+                            modifier = Modifier.widthIn(max = CardMaxWidth),
+                        )
+                    } else {
+                        MeetingCard(
+                            item = item,
+                            talkOutlines = state.talkOutlines,
+                            members = state.members,
+                            selected = item.id == state.selectedMeetingId,
+                            onSelect = { viewModel.selectMeeting(item.id) },
+                            onTituloChanged = { viewModel.onTituloChanged(item.id, it) },
+                            onOradorChanged = { id, nome -> viewModel.onOradorChanged(item.id, id, nome) },
+                            onPresidenteChanged = { viewModel.onPresidenteChanged(item.id, it) },
+                            onDirigenteChanged = { viewModel.onDirigenteChanged(item.id, it) },
+                            onLeitorChanged = { viewModel.onLeitorChanged(item.id, it) },
+                        )
+                    }
                 }
             }
         }

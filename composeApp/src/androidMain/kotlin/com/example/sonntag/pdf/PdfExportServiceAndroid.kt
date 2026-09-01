@@ -14,6 +14,7 @@ import com.example.sonntag.pdf.render.AvScheduleLayout
 import com.example.sonntag.pdf.render.CleaningLayout
 import com.example.sonntag.pdf.render.MidweekProgramLayout
 import com.example.sonntag.pdf.render.PreachingCalendarLayout
+import com.example.sonntag.pdf.render.PreachingGroupsLayout
 import com.example.sonntag.pdf.render.WeekendMeetingLayout
 import com.example.sonntag.pdf.render.WeekendMonthlyLayout
 import com.example.sonntag.platform.AndroidApp
@@ -97,7 +98,16 @@ class PdfExportServiceAndroid : PdfExportService {
                 PreachingCalendarLayout(data, timestamp()).draw(canvas)
             }
         }
-        return save("${'$'}{data.fileSlug}.pdf", bytes)
+        return save("${data.fileSlug}.pdf", bytes)
+    }
+
+    override suspend fun exportPreachingGroups(data: PreachingGroupsPdfData): Boolean {
+        val bytes = withContext(Dispatchers.IO) {
+            renderPdf(LETTER_WIDTH, LETTER_HEIGHT) { canvas ->
+                PreachingGroupsLayout(data, timestamp()).draw(canvas)
+            }
+        }
+        return save("${data.fileSlug}.pdf", bytes)
     }
 
     override suspend fun exportCleaningSchedulePng(data: CleaningSchedulePdfData): Boolean {

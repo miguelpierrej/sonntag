@@ -8,6 +8,52 @@ versionamento segue o [Semantic Versioning](https://semver.org/lang/pt-BR/).
 O workflow de release lê a seção da versão que está sendo fechada e usa o conteúdo
 como corpo do GitHub Release — o cabeçalho precisa ser `## [x.y.z] - AAAA-MM-DD`.
 
+## [1.0.7] - UNRELEASED
+
+### Adicionado
+- Aba Eventos em Configurações, para cadastrar assembleias, congressos e comemorações
+  com nome e data. Assembleia e congresso deixam a semana inteira sem reunião;
+  comemoração no meio da semana derruba a reunião de meio de semana daquela semana, e
+  no fim de semana substitui só a reunião do mesmo dia. O tipo "Outro" apenas anuncia.
+- Nas semanas tomadas por um evento, as telas de meio de semana, fim de semana,
+  áudio/vídeo e limpeza mostram o anúncio do evento no lugar do formulário — não há
+  ninguém a designar. O mesmo vale nos PDFs (S-140, fim de semana, áudio/vídeo e
+  limpeza) e no painel, que ganhou um cartão de próximos eventos e deixa de cobrar a
+  programação dessas reuniões.
+- Os eventos entram na exportação por arquivo e na sincronização pela rede, como mais
+  um bloco a escolher.
+- Cada grupo de pregação passa a ter a sua lista de publicadores, em Programações ›
+  Pregação › Cadastros. O grupo abre e mostra quem o compõe, com botões para incluir e
+  tirar gente. Um publicador pertence a um grupo só: ao escolher alguém que já estava
+  em outro, ele sai do anterior — a lista mostra de qual grupo a pessoa vem antes de
+  você confirmar.
+- "Exportar lista" gera a folha dos grupos em PDF, com o mesmo cabeçalho azul dos
+  demais documentos: um grupo por coluna, lado a lado, com dirigente, auxiliar e ponto
+  de encontro no alto e os publicadores embaixo. São até três colunas por página, e com
+  menos grupos elas se alargam e ficam centralizadas, em vez de espremidas num terço da
+  folha. Havendo mais de três grupos, a folha continua na página seguinte, e um grupo
+  grande demais para uma coluna também continua, com o nome repetido. O rodapé explica
+  as siglas.
+- Os grupos e os seus publicadores entram na exportação por arquivo e na sincronização
+  pela rede, dentro do bloco Pregação que já existia.
+- No cadastro de publicadores, três marcações opcionais: Ancião, Servo ministerial e
+  Pioneiro. Elas aparecem só nos grupos de pregação, como sigla ao lado do nome —
+  "João Silva - SM | PR". Dirigente e auxiliar saem sem sigla, porque o cargo já está
+  escrito ao lado. Vale na tela e na folha exportada.
+- Ao incluir alguém num grupo, dá para escrever o nome em vez de procurar na lista: ela
+  filtra enquanto você digita, sem diferenciar acentos, e quando sobra um nome só ele
+  já fica escolhido.
+
+### Corrigido
+- No computador, cadastrar ou editar um publicador não aparecia nas telas: era preciso
+  fechar e reabrir o app. O driver de banco do desktop descartava os avisos de mudança
+  — a tela pedia para ser avisada e ninguém a chamava. Valia para todas as telas que
+  acompanham uma tabela (publicadores, áudio/vídeo, programas); no celular nunca houve
+  o problema. Além disso, as telas de Pregação e o painel liam a lista de publicadores
+  uma vez só, na abertura do app, e agora acompanham a tabela como as demais.
+- O calendário de pregação era salvo com o nome literal `${data.fileSlug}.pdf`, em vez
+  do nome do mês e do tipo de programa. Valia para o computador e para o celular.
+
 ## [1.0.6] - 2026-08-17
 
 ### Adicionado
