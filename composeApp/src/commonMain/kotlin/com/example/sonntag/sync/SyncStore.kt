@@ -76,6 +76,36 @@ class SyncStore(private val driver: SqlDriver) {
         }.value
     }
 
+    fun countAlive(table: String): Long = query("SELECT COUNT(*) FROM $table WHERE deleted = 0") {
+        it.getLong(0)!!
+    }.first()
+
+    /** Comando qualquer com parametros de texto; usado pela sincronizacao na nuvem. */
+    fun execute(sql: String, vararg args: String?) {
+        driver.execute(null, sql, args.size) {
+            args.forEachIndexed { index, value -> bindString(index, value) }
+        }.value
+    }
+
+    /** Consulta qualquer com [columns] colunas; cada linha volta como lista de textos. */
+    fun select(sql: String, columns: Int, vararg args: String?): List<List<String?>> =
+        driver.executeQuery(
+            identifier = null,
+            sql = sql,
+            parameters = args.size,
+            binders = { args.forEachIndexed { index, value -> bindString(index, value) } },
+            mapper = { cursor ->
+                val out = mutableListOf<List<String?>>()
+                while (cursor.next().value) out += (0 until columns).map { cursor.getString(it) }
+                QueryResult.Value(out.toList())
+            },
+        ).value
+
+    /** Avisa as telas que observam estas tabelas; escrita generica nao avisa sozinha. */
+    fun notifyChanged(tables: Collection<String>) {
+        if (tables.isNotEmpty()) driver.notifyListeners(*tables.toTypedArray())
+    }
+
     private fun <T : Any> query(sql: String, parameter: String? = null, row: (app.cash.sqldelight.db.SqlCursor) -> T): List<T> =
         driver.executeQuery(
             identifier = null,

@@ -3,6 +3,8 @@ package com.example.sonntag
 import android.app.Application
 import com.example.sonntag.di.appModule
 import com.example.sonntag.platform.AndroidApp
+import com.example.sonntag.cloud.CloudAutoSync
+import org.koin.core.context.GlobalContext
 import org.koin.core.context.startKoin
 
 class SonntagApplication : Application() {
@@ -12,5 +14,7 @@ class SonntagApplication : Application() {
         // e as funcoes `actual` sao top-level (sem injecao).
         AndroidApp.context = this
         startKoin { modules(appModule) }
+        // Comeca parada: so sincroniza com a Activity na tela (ver MainActivity).
+        GlobalContext.get().get<CloudAutoSync>().start(visible = false)
     }
 }

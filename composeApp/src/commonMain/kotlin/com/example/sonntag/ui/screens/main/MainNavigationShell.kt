@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
@@ -256,23 +258,27 @@ private fun AppNavigationRail(
         modifier = Modifier.width(RailWidth),
         containerColor = MaterialTheme.colorScheme.surface,
     ) {
-        Spacer(modifier = Modifier.height(8.dp))
-        items.forEach { item ->
-            NavigationRailItem(
-                selected = item.id == selectedId,
-                onClick = { onItemSelected(item.id) },
-                icon = { Icon(item.icon, contentDescription = null) },
-                label = {
-                    Text(
-                        text = tr(item.shortLabel),
-                        style = MaterialTheme.typography.labelSmall,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                },
-            )
+        // Rolavel: num celular deitado a altura (~390dp) nao comporta todos os itens, e
+        // sem rolagem os ultimos — Configuracoes entre eles — ficavam fora de alcance.
+        Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+            Spacer(modifier = Modifier.height(8.dp))
+            items.forEach { item ->
+                NavigationRailItem(
+                    selected = item.id == selectedId,
+                    onClick = { onItemSelected(item.id) },
+                    icon = { Icon(item.icon, contentDescription = null) },
+                    label = {
+                        Text(
+                            text = tr(item.shortLabel),
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    },
+                )
+            }
         }
     }
 }
@@ -317,7 +323,12 @@ private fun AppNavigationDrawer(
             DrawerHeader(name = congregationName, subtitle = congregationSubtitle)
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             Spacer(modifier = Modifier.height(8.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            // So a lista rola; o nome da congregacao fica no alto. Numa janela baixa (ou
+            // com grupos abertos) os ultimos itens sairiam da tela.
+            Column(
+                modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
                 entries.forEach { entry ->
                     when (entry) {
                         is NavEntry.Single -> DrawerItem(

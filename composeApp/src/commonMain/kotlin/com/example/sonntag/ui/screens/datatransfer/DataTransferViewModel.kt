@@ -12,7 +12,10 @@ import com.example.sonntag.net.LanPeer
 import com.example.sonntag.net.LanSync
 import com.example.sonntag.net.LanSyncConfig
 import com.example.sonntag.net.createLanSync
+import com.example.sonntag.sync.RecordDiff
+import com.example.sonntag.sync.SyncDescriber
 import com.example.sonntag.sync.SyncStamp
+import com.example.sonntag.sync.SyncStore
 import com.example.sonntag.sync.ChangeKind
 import com.example.sonntag.sync.ImportPreview
 import com.example.sonntag.sync.IncomingRow
@@ -38,6 +41,10 @@ data class DataTransferUiState(
     val message: String? = null,
     // Importacao
     val preview: ImportPreview? = null,
+    /** Titulo e campos que mudam de cada linha do preview, por uuid. */
+    val previewDetails: Map<String, RecordDiff> = emptyMap(),
+    /** De onde veio o que esta no preview: "Arquivo" ou o nome do aparelho. */
+    val previewSource: String = "",
     val pendingBytes: ByteArray? = null,
     val askPassword: Boolean = false,
     val importPassword: String = "",
@@ -69,6 +76,7 @@ class DataTransferViewModel(
     private val peersRepository: SyncPeersRepository,
     private val settingsRepository: SettingsRepository,
     private val stamp: SyncStamp,
+    private val store: SyncStore,
 ) : ViewModel() {
 
     /** Todas as secoes: numa troca pela rede nao faz sentido escolher parte. */
@@ -208,6 +216,8 @@ class DataTransferViewModel(
                 _uiState.value = _uiState.value.copy(
                     syncingWith = null,
                     preview = preview,
+                    previewDetails = preview?.let(::detalhar).orEmpty(),
+                    previewSource = peer.nome,
                     acceptedRows = preview?.aceitasPorPadrao.orEmpty(),
                     message = if (preview != null && preview.rows.isEmpty()) {
                         t("Nada novo de {0}.", peer.nome)
@@ -245,6 +255,8 @@ class DataTransferViewModel(
         peersRepository.remember(peerId, peerNome, stamp.now())
         _uiState.value = _uiState.value.copy(
             preview = preview.takeIf { it.rows.isNotEmpty() },
+            previewDetails = detalhar(preview),
+            previewSource = peerNome,
             acceptedRows = preview.aceitasPorPadrao,
             message = if (preview.rows.isEmpty()) {
                 localeController.translator("Nada novo de {0}.", peerNome)
@@ -348,10 +360,26 @@ class DataTransferViewModel(
             askPassword = false,
             pendingBytes = null,
             preview = preview,
+            previewDetails = detalhar(preview),
+            previewSource = localeController.translator("Arquivo"),
             // So o que acrescenta vem marcado; o que sobrescreve ou apaga espera
             // uma decisao.
             acceptedRows = preview.aceitasPorPadrao,
         )
+    }
+
+    /**
+     * Texto de cada linha: o que ela e e, para quem muda algo que ja existe aqui, os
+     * campos com o valor de cada lado.
+     */
+    private fun detalhar(preview: ImportPreview): Map<String, RecordDiff> {
+        val describer = SyncDescriber(
+            store = store,
+            t = localeController.translator,
+            extra = preview.rows.groupBy({ it.table }, { it.values }),
+            aliases = preview.aliases,
+        )
+        return preview.rows.associate { row -> row.uuid to describer.diff(row.table, row.localValues, row.values) }
     }
 
     /** Marca ou desmarca uma linha. */

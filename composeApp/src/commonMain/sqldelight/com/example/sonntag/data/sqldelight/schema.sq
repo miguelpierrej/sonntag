@@ -336,6 +336,17 @@ CREATE TABLE sync_conflicts (
     UNIQUE(tabela, row_uuid)
 );
 
+-- Sincronizacao na nuvem: a mesma linha derivada (reuniao, semana de limpeza) nasce
+-- em cada aparelho com um uuid. Todos convergem para o menor; `de` -> `para` diz
+-- qual uuid substitui qual, e `enviado` se a nuvem ja foi avisada.
+CREATE TABLE cloud_aliases (
+    tabela TEXT NOT NULL,
+    de TEXT NOT NULL,
+    para TEXT NOT NULL,
+    enviado INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (tabela, de)
+);
+
 -- Queries basicas
 
 getSettings:

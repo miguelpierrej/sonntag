@@ -8,6 +8,41 @@ versionamento segue o [Semantic Versioning](https://semver.org/lang/pt-BR/).
 O workflow de release lê a seção da versão que está sendo fechada e usa o conteúdo
 como corpo do GitHub Release — o cabeçalho precisa ser `## [x.y.z] - AAAA-MM-DD`.
 
+## [1.0.8] -
+
+### Adicionado
+- Sincronização na nuvem, em Configurações › Dados, abaixo da Rede local. Basta colar
+  a URL de um PostgreSQL (Supabase, Neon ou servidor próprio) e a senha da
+  congregação: o app cria as tabelas que faltarem e envia os dados. Outros aparelhos
+  que se conectarem ao mesmo banco recebem as mesmas informações com "Sincronizar
+  agora". Os dados continuam guardados no aparelho; a nuvem é só o ponto de encontro.
+- Os dados vão cifrados com a senha da congregação: quem administra o servidor não lê
+  nomes nem designações. Em cada registro fica a edição mais recente, e a outra versão
+  fica registrada quando dois aparelhos mudam a mesma coisa.
+- Ao conectar um aparelho que já tem dados a uma nuvem que também tem, o app pergunta
+  se deve usar os dados da nuvem ou combinar os dois.
+- A sincronização é automática enquanto o app está aberto: uma edição chega aos outros
+  aparelhos em poucos segundos, e as telas se atualizam sozinhas. Sem internet, as
+  alterações ficam guardadas e sobem quando a conexão volta; o cartão mostra o estado,
+  quantas alterações aguardam envio e as edições simultâneas registradas. No Android,
+  a sincronização pausa com o app em segundo plano.
+- A senha do banco e a chave da congregação ficam cifradas no aparelho — no Android,
+  com o cofre de chaves do sistema.
+- Divergências mostram os dados, não só a data e a hora. Ao importar um arquivo, ao
+  receber pela rede local e na revisão das edições simultâneas da nuvem, cada registro
+  aparece com os campos que mudam e o valor de cada lado — "Nome: Jose Vega" neste
+  aparelho, "Nome: jose vega" no outro — com nomes de pessoas e datas no lugar de
+  códigos. A pessoa escolhe qual versão fica; na nuvem, a escolha passa a valer em
+  todos os aparelhos. Cada aparelho aparece pelo nome (modelo do celular ou nome do
+  computador).
+
+### Corrigido
+- Com o celular deitado, o menu lateral não rolava e os últimos itens — Configurações
+  entre eles — ficavam fora da tela, sem como chegar a eles. O menu agora rola; o mesmo
+  vale para o menu completo do computador numa janela baixa.
+- Digitar a URL de conexão da nuvem letra a letra (ou com teclados que enviam palavras
+  inteiras) desmontava o campo no meio; agora a URL só é lida ao colar ou ao conectar.
+
 ## [1.0.7] - 2026-09-01
 
 ### Adicionado

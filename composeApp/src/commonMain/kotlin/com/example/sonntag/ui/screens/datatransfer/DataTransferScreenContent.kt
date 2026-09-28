@@ -34,6 +34,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -57,6 +58,7 @@ import com.example.sonntag.sync.ImportPreview
 import com.example.sonntag.sync.IncomingPackage
 import com.example.sonntag.sync.category
 import com.example.sonntag.sync.IncomingRow
+import com.example.sonntag.sync.RecordDiff
 import com.example.sonntag.sync.SyncSection
 import com.example.sonntag.sync.requires
 import org.koin.compose.koinInject
@@ -101,6 +103,8 @@ fun DataTransferScreenContent() {
     state.preview?.let { preview ->
         ImportPreviewDialog(
             preview = preview,
+            details = state.previewDetails,
+            source = state.previewSource,
             aceitos = state.acceptedRows,
             onToggleRow = viewModel::toggleRow,
             onToggleGroup = viewModel::toggleGroup,
@@ -138,6 +142,7 @@ fun DataTransferScreenContent() {
             onToggle = viewModel::toggleLan,
             onPeerClick = viewModel::askPeerCode,
         )
+        CloudCard()
     }
 }
 
@@ -406,6 +411,8 @@ private fun PasswordDialog(
 @Composable
 private fun ImportPreviewDialog(
     preview: ImportPreview,
+    details: Map<String, RecordDiff>,
+    source: String,
     aceitos: Set<String>,
     onToggleRow: (IncomingRow, Boolean) -> Unit,
     onToggleGroup: (List<IncomingRow>, Boolean) -> Unit,
@@ -430,7 +437,10 @@ private fun ImportPreviewDialog(
             )
             .map { (chave, linhas) -> ImportGroup(chave.first, chave.second, linhas.map { it.third }) }
     }
-    val abertos = remember { mutableStateOf(emptySet<String>()) }
+    // As divergencias ja vem abertas: sao elas que pedem uma escolha.
+    val abertos = remember(grupos) {
+        mutableStateOf(grupos.filter { it.categoria == ImportCategory.DIVERGENCIAS }.map { it.chave }.toSet())
+    }
     val total = aceitos.count { uuid -> preview.rows.any { it.uuid == uuid } }
 
     AlertDialog(
@@ -445,7 +455,7 @@ private fun ImportPreviewDialog(
         text = {
             Column(modifier = Modifier.widthIn(max = 560.dp)) {
                 Text(
-                    tr("Só os registros novos vêm marcados. Atualizações e exclusões mudam o que já existe aqui — marque o que quiser aceitar."),
+                    tr("Só os registros novos vêm marcados. Atualizações e exclusões mudam o que já existe aqui — marque o que quiser aceitar. Nas divergências, escolha a versão de cada registro."),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -470,7 +480,13 @@ private fun ImportPreviewDialog(
                         }
                         if (grupo.chave in abertos.value) {
                             items(grupo.rows, key = { it.uuid }) { row ->
-                                RowLine(row = row, aceito = row.uuid in aceitos, onToggle = onToggleRow)
+                                RowLine(
+                                    row = row,
+                                    detail = details[row.uuid],
+                                    source = source,
+                                    aceito = row.uuid in aceitos,
+                                    onToggle = onToggleRow,
+                                )
                             }
                         }
                     }
@@ -529,25 +545,74 @@ private fun GroupHeader(
     }
 }
 
+/**
+ * Uma linha do preview. Quando ela muda algo que ja existe aqui, as duas versoes
+ * aparecem com os valores de cada campo, e a pessoa escolhe qual fica — antes so
+ * havia a data e a hora de cada lado, que nao diziam nada.
+ */
 @Composable
-private fun RowLine(row: IncomingRow, aceito: Boolean, onToggle: (IncomingRow, Boolean) -> Unit) {
+private fun RowLine(
+    row: IncomingRow,
+    detail: RecordDiff?,
+    source: String,
+    aceito: Boolean,
+    onToggle: (IncomingRow, Boolean) -> Unit,
+) {
+    val titulo = detail?.title ?: row.description
+    val campos = detail?.fields.orEmpty()
+    val escolha = row.category() in setOf(ImportCategory.DIVERGENCIAS, ImportCategory.ATUALIZACOES) &&
+        campos.isNotEmpty()
+
+    if (!escolha) {
+        Row(modifier = Modifier.padding(start = 24.dp), verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(checked = aceito, onCheckedChange = { onToggle(row, it) })
+            Text(titulo, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
+        return
+    }
+
+    Column(modifier = Modifier.padding(start = 24.dp, top = 8.dp, bottom = 8.dp)) {
+        Text(titulo, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+        VersionOption(
+            label = tr("Este dispositivo"),
+            values = campos.map { it.label to it.local },
+            selected = !aceito,
+            onSelect = { onToggle(row, false) },
+        )
+        VersionOption(
+            label = source,
+            values = campos.map { it.label to it.remote },
+            selected = aceito,
+            onSelect = { onToggle(row, true) },
+        )
+    }
+}
+
+/** Uma das versoes de um registro: quem a tem e o valor de cada campo que difere. */
+@Composable
+internal fun VersionOption(
+    label: String,
+    values: List<Pair<String, String>>,
+    selected: Boolean,
+    onSelect: () -> Unit,
+) {
     Row(
-        modifier = Modifier.padding(start = 24.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onSelect).padding(vertical = 2.dp),
+        verticalAlignment = Alignment.Top,
     ) {
-        Checkbox(checked = aceito, onCheckedChange = { onToggle(row, it) })
-        Column(modifier = Modifier.weight(1f)) {
+        RadioButton(selected = selected, onClick = onSelect)
+        Column(modifier = Modifier.weight(1f).padding(top = 12.dp)) {
             Text(
-                row.description,
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                label,
+                style = MaterialTheme.typography.labelLarge,
+                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Text(
-                tr("aqui: {0} · arquivo: {1}", row.localUpdatedAt.orEmpty(), row.remoteUpdatedAt.orEmpty()),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            values.forEach { (campo, valor) ->
+                Text(
+                    "$campo: $valor",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
         }
     }
 }
@@ -560,7 +625,7 @@ private fun categoriaLabel(categoria: ImportCategory): String = when (categoria)
 }
 
 @Composable
-private fun SectionCard(title: String, subtitle: String, content: @Composable () -> Unit) {
+internal fun SectionCard(title: String, subtitle: String, content: @Composable () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth().widthIn(max = CardMaxWidth),
         shape = RoundedCornerShape(12.dp),

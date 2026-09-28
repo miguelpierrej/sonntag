@@ -9,9 +9,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.IntentCompat
+import com.example.sonntag.cloud.CloudAutoSync
 import com.example.sonntag.platform.AndroidApp
 import com.example.sonntag.platform.FilePicker
 import com.example.sonntag.sync.IncomingPackage
+import org.koin.core.context.GlobalContext
 
 class MainActivity : ComponentActivity() {
 
@@ -77,6 +79,18 @@ class MainActivity : ComponentActivity() {
         contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
             ?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
     }.getOrNull() ?: uri.lastPathSegment
+
+    // A nuvem sincroniza so com o app na tela: em segundo plano o Android corta a rede
+    // de qualquer forma, e insistir so gastaria bateria.
+    override fun onStart() {
+        super.onStart()
+        GlobalContext.get().get<CloudAutoSync>().setForeground(true)
+    }
+
+    override fun onStop() {
+        GlobalContext.get().get<CloudAutoSync>().setForeground(false)
+        super.onStop()
+    }
 
     override fun onDestroy() {
         if (AndroidApp.activity === this) AndroidApp.activity = null

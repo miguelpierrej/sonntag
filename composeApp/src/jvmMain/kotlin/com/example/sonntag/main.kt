@@ -16,6 +16,7 @@ import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import java.awt.GraphicsEnvironment
+import com.example.sonntag.cloud.CloudAutoSync
 import com.example.sonntag.data.repos.MeetingDaysRepository
 import com.example.sonntag.data.repos.SettingsRepository
 import com.example.sonntag.di.appModule
@@ -50,6 +51,8 @@ fun main() {
     startKoin {
         modules(appModule)
     }
+    // No desktop a janela esta sempre "visivel": sincroniza enquanto o app estiver aberto.
+    GlobalContext.get().get<CloudAutoSync>().start()
 
     application {
         val settingsRepo = remember { GlobalContext.get().get<SettingsRepository>() }

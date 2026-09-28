@@ -40,7 +40,13 @@ kotlin {
     // Desktop e Android sao os dois JVM: o codigo de rede (java.net) vive uma vez so.
     applyDefaultHierarchyTemplate()
     sourceSets {
-        val jvmAndroidMain by creating { dependsOn(commonMain.get()) }
+        val jvmAndroidMain by creating {
+            dependsOn(commonMain.get())
+            dependencies {
+                // Sincronizacao na nuvem: fala direto com o PostgreSQL do usuario.
+                implementation(libs.postgresql)
+            }
+        }
         jvmMain.get().dependsOn(jvmAndroidMain)
         androidMain.get().dependsOn(jvmAndroidMain)
 
@@ -155,7 +161,12 @@ compose.desktop {
             // abertura — no Windows com um lacônico "Failed to launch JVM". O banco
             // precisa de java.sql, e o HikariCP de java.naming e java.management.
             // Conferir com: ./gradlew :composeApp:suggestRuntimeModules
-            modules("java.instrument", "java.management", "java.naming", "java.sql", "jdk.unsupported")
+            // O jdk.crypto.ec entra pelo TLS da nuvem: sem ele o aperto de mao com
+            // servidores que so oferecem curvas elipticas (Supabase, Neon) falha.
+            modules(
+                "java.instrument", "java.management", "java.naming", "java.sql",
+                "jdk.unsupported", "jdk.crypto.ec", "java.security.jgss",
+            )
 
             windows {
                 iconFile.set(project.file("icons/app-icon.ico"))
@@ -318,4 +329,31 @@ tasks.register<JavaExec>("repairDb") {
     classpath = jvmMain.output.allOutputs + jvmMain.runtimeDependencyFiles
     mainClass.set("com.example.sonntag.tools.RepairDbKt")
     args(System.getenv("DB") ?: "${System.getProperty("user.home")}/.salao-app/data.db")
+}
+
+tasks.register<JavaExec>("simulateCloud") {
+    val jvmMain = kotlin.jvm().compilations.getByName("main")
+    dependsOn(jvmMain.compileTaskProvider)
+    classpath = jvmMain.output.allOutputs + jvmMain.runtimeDependencyFiles
+    mainClass.set("com.example.sonntag.tools.SimulateCloudKt")
+    args(
+        System.getenv("DB") ?: "${System.getProperty("user.home")}/.salao-app/data.db",
+        System.getenv("PG") ?: "postgresql://postgres:segredo@localhost:55432/postgres",
+        System.getenv("OUT") ?: "/tmp/nuvem",
+    )
+}
+
+tasks.register<JavaExec>("cloudPeer") {
+    val jvmMain = kotlin.jvm().compilations.getByName("main")
+    dependsOn(jvmMain.compileTaskProvider)
+    classpath = jvmMain.output.allOutputs + jvmMain.runtimeDependencyFiles
+    mainClass.set("com.example.sonntag.tools.CloudPeerKt")
+    args(
+        System.getenv("DB") ?: "/tmp/copia.db",
+        System.getenv("PG") ?: "postgresql://postgres:segredo@localhost:55432/postgres",
+        System.getenv("ACAO") ?: "vigiar",
+        System.getenv("MEMBRO") ?: "",
+        System.getenv("NOVO") ?: "",
+        System.getenv("SEGUNDOS") ?: "90",
+    )
 }

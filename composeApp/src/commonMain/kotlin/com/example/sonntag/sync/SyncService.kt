@@ -110,6 +110,11 @@ data class IncomingRow(
     val localUpdatedAt: String?,
     val remoteUpdatedAt: String?,
     val values: RowValues,
+    /**
+     * A versao que existe aqui, com as referencias ja como uuid — na mesma moeda de
+     * [values], para a tela mostrar campo a campo o que muda.
+     */
+    val localValues: RowValues? = null,
 )
 
 data class ImportPreview(
@@ -331,6 +336,7 @@ class SyncService(
                     localUpdatedAt = local?.get("updated_at"),
                     remoteUpdatedAt = row["updated_at"],
                     values = row,
+                    localValues = local?.mapValues { (c, v) -> toUuid(paraUuid, c, v) },
                 )
             }
         }

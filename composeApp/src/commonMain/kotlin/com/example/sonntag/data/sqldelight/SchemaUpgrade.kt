@@ -118,6 +118,28 @@ object SchemaUpgrade {
             deleted INTEGER NOT NULL DEFAULT 0
         )
         """,
+        """
+        CREATE TABLE IF NOT EXISTS sync_conflicts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tabela TEXT NOT NULL,
+            row_uuid TEXT NOT NULL,
+            local_json TEXT NOT NULL,
+            remoto_json TEXT NOT NULL,
+            remoto_device TEXT NOT NULL,
+            detectado_em TEXT NOT NULL,
+            resolvido INTEGER NOT NULL DEFAULT 0,
+            UNIQUE(tabela, row_uuid)
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS cloud_aliases (
+            tabela TEXT NOT NULL,
+            de TEXT NOT NULL,
+            para TEXT NOT NULL,
+            enviado INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (tabela, de)
+        )
+        """,
     )
 
     /** Coluna que nasceu depois da tabela: (tabela, nome, definicao). */

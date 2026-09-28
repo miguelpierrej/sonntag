@@ -16,6 +16,19 @@ interface SyncCrypto {
     fun decrypt(cipher: ByteArray, passphrase: String, salt: ByteArray, iv: ByteArray): ByteArray?
 
     fun randomBytes(size: Int): ByteArray
+
+    /**
+     * Chave AES derivada da senha, para quem cifra muitas coisas com a mesma senha.
+     *
+     * A nuvem cifra linha a linha; derivar a chave a cada linha (PBKDF2 lento de
+     * proposito) levaria minutos numa sincronizacao completa.
+     */
+    fun deriveKey(passphrase: String, salt: ByteArray): ByteArray
+
+    fun encryptWithKey(plain: ByteArray, key: ByteArray, iv: ByteArray): ByteArray
+
+    /** Null quando a chave nao confere ou o conteudo foi adulterado. */
+    fun decryptWithKey(cipher: ByteArray, key: ByteArray, iv: ByteArray): ByteArray?
 }
 
 /** Usada quando o usuario opta por nao definir senha. */
