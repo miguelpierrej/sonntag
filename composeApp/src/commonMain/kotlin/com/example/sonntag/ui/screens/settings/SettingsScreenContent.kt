@@ -5,6 +5,7 @@ import com.example.sonntag.i18n.AppLanguage
 import com.example.sonntag.i18n.LocaleController
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -109,7 +110,11 @@ private fun TabStrip(
     selectedIndex: Int,
     onSelected: (Int) -> Unit,
 ) {
-    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+    // Rola na horizontal: em tela estreita a ultima aba era espremida e quebrava a linha.
+    Row(
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
         tabs.forEachIndexed { index, label ->
             val selected = index == selectedIndex
             val bg = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.10f) else Color.Transparent
@@ -118,7 +123,7 @@ private fun TabStrip(
                 onClick = { onSelected(index) },
                 modifier = Modifier.background(bg, RoundedCornerShape(8.dp)),
             ) {
-                Text(label, color = fg, style = MaterialTheme.typography.labelLarge)
+                Text(label, color = fg, style = MaterialTheme.typography.labelLarge, maxLines = 1, softWrap = false)
             }
         }
     }

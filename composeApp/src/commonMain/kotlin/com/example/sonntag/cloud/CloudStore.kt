@@ -17,20 +17,25 @@ data class CloudConfig(
          * Supabase e o Neon mostram para copiar. Null se o texto nao for uma URL.
          */
         fun fromUri(text: String): CloudConfig? {
-            val match = URI_REGEX.matchEntire(text.trim()) ?: return null
-            val (user, password, host, port, database) = match.destructured
+            val trimmed = text.trim()
+            val scheme = SCHEME_REGEX.find(trimmed) ?: return null
+            val rest = trimmed.substring(scheme.range.last + 1)
+            // Corta no ULTIMO @: senha colada sem codificar pode ter @, /, # ou ?.
+            val at = rest.lastIndexOf('@')
+            val userInfo = if (at >= 0) rest.substring(0, at) else ""
+            val match = ADDRESS_REGEX.matchEntire(rest.substring(at + 1)) ?: return null
+            val (host, port, database) = match.destructured
             return CloudConfig(
                 host = host.removePrefix("[").removeSuffix("]"),
                 port = port.toIntOrNull() ?: DEFAULT_PORT,
                 database = percentDecode(database).ifBlank { DEFAULT_DATABASE },
-                user = percentDecode(user),
-                password = percentDecode(password),
+                user = percentDecode(userInfo.substringBefore(':')),
+                password = percentDecode(userInfo.substringAfter(':', "")),
             )
         }
 
-        private val URI_REGEX = Regex(
-            """postgres(?:ql)?://([^:@/]*)(?::([^@/]*))?@(\[[^\]]+]|[^:/?]+)(?::(\d+))?(?:/([^?]*))?(?:\?.*)?""",
-        )
+        private val SCHEME_REGEX = Regex("""^postgres(?:ql)?://""", RegexOption.IGNORE_CASE)
+        private val ADDRESS_REGEX = Regex("""(\[[^\]]+]|[^:/?#]+)(?::(\d+))?(?:/([^?#]*))?(?:[?#].*)?""")
 
         private fun percentDecode(text: String): String {
             if ('%' !in text) return text

@@ -505,6 +505,8 @@ object EsTranslations {
         "Sincronização na nuvem" to "Sincronización en la nube",
         "Compartilhar os dados com outros aparelhos pela internet" to
             "Compartir los datos con otros dispositivos por internet",
+        "URL repartida: usuário, senha, porta e banco foram para os campos abaixo." to
+            "URL separada: usuario, contraseña, puerto y base de datos pasaron a los campos de abajo.",
         "Cole a URL de conexão do PostgreSQL (Supabase, Neon ou servidor próprio) ou preencha os campos." to
             "Pegue la URL de conexión de PostgreSQL (Supabase, Neon o servidor propio) o complete los campos.",
         "Servidor ou URL de conexão" to "Servidor o URL de conexión",

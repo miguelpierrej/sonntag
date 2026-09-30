@@ -220,6 +220,9 @@ private fun FormContent(state: CloudUiState, viewModel: CloudViewModel) {
             value = state.host,
             onValueChange = viewModel::setHost,
             label = { Text(tr("Servidor ou URL de conexão")) },
+            supportingText = if (state.urlSplit) {
+                { Text(tr("URL repartida: usuário, senha, porta e banco foram para os campos abaixo.")) }
+            } else null,
             singleLine = true,
             enabled = !state.busy,
             modifier = Modifier.fillMaxWidth(),

@@ -34,6 +34,8 @@ data class CloudUiState(
     val user: String = "",
     val password: String = "",
     val passphrase: String = "",
+    /** A URL colada foi repartida nos campos; o de servidor fica so com o endereco. */
+    val urlSplit: Boolean = false,
     val busy: Boolean = false,
     val error: String? = null,
     /** Resumo da primeira sincronizacao, logo depois de conectar. */
@@ -120,7 +122,7 @@ class CloudViewModel(
     fun setHost(value: String) {
         val anterior = _uiState.value.host
         val colou = anterior.isEmpty() || !value.startsWith(anterior)
-        _uiState.update { applyUri(it.copy(host = value, error = null), onlyIf = colou) }
+        _uiState.update { applyUri(it.copy(host = value, error = null, urlSplit = false), onlyIf = colou) }
     }
 
     private fun applyUri(state: CloudUiState, onlyIf: Boolean = true): CloudUiState {
@@ -131,6 +133,7 @@ class CloudViewModel(
             database = parsed.database,
             user = parsed.user.ifEmpty { state.user },
             password = parsed.password.ifEmpty { state.password },
+            urlSplit = true,
         )
     }
 

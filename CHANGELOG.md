@@ -8,6 +8,16 @@ versionamento segue o [Semantic Versioning](https://semver.org/lang/pt-BR/).
 O workflow de release lê a seção da versão que está sendo fechada e usa o conteúdo
 como corpo do GitHub Release — o cabeçalho precisa ser `## [x.y.z] - AAAA-MM-DD`.
 
+## [1.0.9] - Unreleased
+
+### Corrigido
+- Em telas estreitas, a aba "Dados" de Configurações ficava espremida e ilegível.
+  As abas agora ficam numa linha só e deslizam para o lado quando não cabem.
+- Ao colar a URL de conexão da nuvem, uma senha com `@`, `/`, `#` ou `?` era cortada
+  e o resto ia parar no campo errado. Agora a URL é repartida corretamente, e uma
+  linha abaixo do campo avisa que usuário, senha, porta e banco foram para os campos
+  de baixo.
+
 ## [1.0.8] - 2026-09-28
 
 ### Adicionado
