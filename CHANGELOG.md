@@ -8,6 +8,24 @@ versionamento segue o [Semantic Versioning](https://semver.org/lang/pt-BR/).
 O workflow de release lê a seção da versão que está sendo fechada e usa o conteúdo
 como corpo do GitHub Release — o cabeçalho precisa ser `## [x.y.z] - AAAA-MM-DD`.
 
+## [1.2.0] - Unreleased
+
+### Adicionado
+- Exportar e importar a conexão da nuvem por arquivo (`.sonntagnuvem`). Com a nuvem
+  conectada, "Exportar conexão para outro aparelho" salva servidor, porta, banco,
+  usuário e senha do banco, tudo cifrado com a senha da congregação (conferida antes
+  de salvar). No outro aparelho, "Importar conexão" abre o arquivo, pede a mesma senha,
+  preenche os campos e conecta.
+
+### Corrigido
+- No celular, a aba "Dados" de Configurações ainda aparecia cortada na borda ("Dato").
+  As abas ficaram mais compactas e a aba escolhida rola para a vista.
+- A URL de conexão da nuvem se quebrava ao ser colada ou digitada no celular: o app
+  desmontava o campo enquanto o teclado ainda escrevia, e uma senha com `@`, `/`, `#`
+  ou `?` era cortada. Agora o campo guarda a URL como foi escrita, o teclado não
+  corrige nem põe maiúscula, e uma linha abaixo mostra usuário, porta e banco
+  reconhecidos; a URL só é desmontada ao conectar.
+
 ## [1.0.9] - 2026-09-30
 
 ### Corrigido

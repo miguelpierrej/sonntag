@@ -5,6 +5,9 @@ import com.example.sonntag.i18n.AppLanguage
 import com.example.sonntag.i18n.LocaleController
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -119,9 +122,15 @@ private fun TabStrip(
             val selected = index == selectedIndex
             val bg = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.10f) else Color.Transparent
             val fg = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+            // A aba escolhida rola para a vista: no celular a ultima ficava cortada na borda.
+            val requester = remember { BringIntoViewRequester() }
+            if (selected) LaunchedEffect(Unit) { requester.bringIntoView() }
             TextButton(
                 onClick = { onSelected(index) },
-                modifier = Modifier.background(bg, RoundedCornerShape(8.dp)),
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
+                modifier = Modifier
+                    .bringIntoViewRequester(requester)
+                    .background(bg, RoundedCornerShape(8.dp)),
             ) {
                 Text(label, color = fg, style = MaterialTheme.typography.labelLarge, maxLines = 1, softWrap = false)
             }

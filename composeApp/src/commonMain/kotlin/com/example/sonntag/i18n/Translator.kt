@@ -505,8 +505,22 @@ object EsTranslations {
         "Sincronização na nuvem" to "Sincronización en la nube",
         "Compartilhar os dados com outros aparelhos pela internet" to
             "Compartir los datos con otros dispositivos por internet",
-        "URL repartida: usuário, senha, porta e banco foram para os campos abaixo." to
-            "URL separada: usuario, contraseña, puerto y base de datos pasaron a los campos de abajo.",
+        "Exportar conexão para outro aparelho" to "Exportar conexión a otro dispositivo",
+        "Importar conexão" to "Importar conexión",
+        "Exportar conexão" to "Exportar conexión",
+        "O arquivo leva o servidor, o usuário e a senha do banco, cifrados com a senha da congregação. No outro aparelho, basta abri-lo e digitar a mesma senha." to
+            "El archivo lleva el servidor, el usuario y la contraseña de la base de datos, cifrados con la contraseña de la congregación. En el otro dispositivo, basta abrirlo y escribir la misma contraseña.",
+        "Digite a senha da congregação usada para cifrar este arquivo." to
+            "Escriba la contraseña de la congregación usada para cifrar este archivo.",
+        "A senha não abre este arquivo." to "La contraseña no abre este archivo.",
+        "Abrir conexão da nuvem" to "Abrir conexión de la nube",
+        "Salvar conexão da nuvem" to "Guardar conexión de la nube",
+        "Conexão do Sonntag" to "Conexión de Sonntag",
+        "Conexão salva em {0}" to "Conexión guardada en {0}",
+        "Erro ao abrir o arquivo: {0}" to "Error al abrir el archivo: {0}",
+        "Este arquivo não é uma conexão da nuvem do Sonntag." to "Este archivo no es una conexión de la nube de Sonntag.",
+        "URL reconhecida: usuário {0}, porta {1}, banco {2}." to
+            "URL reconocida: usuario {0}, puerto {1}, base de datos {2}.",
         "Cole a URL de conexão do PostgreSQL (Supabase, Neon ou servidor próprio) ou preencha os campos." to
             "Pegue la URL de conexión de PostgreSQL (Supabase, Neon o servidor propio) o complete los campos.",
         "Servidor ou URL de conexão" to "Servidor o URL de conexión",

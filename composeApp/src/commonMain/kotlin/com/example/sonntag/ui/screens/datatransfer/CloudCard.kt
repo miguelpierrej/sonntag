@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CloudDone
@@ -40,6 +41,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -94,6 +97,10 @@ fun CloudCard() {
             confirmButton = { TextButton(onClick = viewModel::disconnect) { Text(tr("Desconectar")) } },
             dismissButton = { TextButton(onClick = viewModel::cancelDisconnect) { Text(tr("Cancelar")) } },
         )
+    }
+
+    state.connectionPrompt?.let { prompt ->
+        ConnectionPassphraseDialog(prompt, state, viewModel)
     }
 
     SectionCard(
@@ -174,6 +181,10 @@ private fun ConnectedContent(state: CloudUiState, viewModel: CloudViewModel) {
             Text(tr("Desconectar"))
         }
     }
+    TextButton(onClick = viewModel::askExportConnection) {
+        Text(tr("Exportar conexão para outro aparelho"))
+    }
+    NoticeText(state.notice)
 }
 
 /** "Sincronizado há 5 s", que anda sozinho enquanto a tela esta aberta. */
@@ -215,19 +226,27 @@ private fun FormContent(state: CloudUiState, viewModel: CloudViewModel) {
     )
     Spacer(modifier = Modifier.height(12.dp))
 
+    val url = state.url
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedTextField(
             value = state.host,
             onValueChange = viewModel::setHost,
             label = { Text(tr("Servidor ou URL de conexão")) },
-            supportingText = if (state.urlSplit) {
-                { Text(tr("URL repartida: usuário, senha, porta e banco foram para os campos abaixo.")) }
-            } else null,
+            supportingText = url?.let { u ->
+                { Text(tr("URL reconhecida: usuário {0}, porta {1}, banco {2}.", u.user, u.port, u.database)) }
+            },
             singleLine = true,
             enabled = !state.busy,
+            // Sem correcao nem maiuscula automatica: o teclado estragava a URL digitada.
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Uri,
+                capitalization = KeyboardCapitalization.None,
+                autoCorrectEnabled = false,
+            ),
             modifier = Modifier.fillMaxWidth(),
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        // Com a URL no campo, porta, banco e usuario vem dela; a senha so se faltar.
+        if (url == null) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(
                 value = state.port,
                 onValueChange = viewModel::setPort,
@@ -246,7 +265,7 @@ private fun FormContent(state: CloudUiState, viewModel: CloudViewModel) {
                 modifier = Modifier.weight(0.65f),
             )
         }
-        OutlinedTextField(
+        if (url == null) OutlinedTextField(
             value = state.user,
             onValueChange = viewModel::setUser,
             label = { Text(tr("Usuário")) },
@@ -254,7 +273,7 @@ private fun FormContent(state: CloudUiState, viewModel: CloudViewModel) {
             enabled = !state.busy,
             modifier = Modifier.fillMaxWidth(),
         )
-        OutlinedTextField(
+        if (url == null || url.password.isEmpty()) OutlinedTextField(
             value = state.password,
             onValueChange = viewModel::setPassword,
             label = { Text(tr("Senha do banco")) },
@@ -286,15 +305,74 @@ private fun FormContent(state: CloudUiState, viewModel: CloudViewModel) {
 
     ErrorText(state.error)
     Spacer(modifier = Modifier.height(16.dp))
-    Button(onClick = viewModel::connect, enabled = state.canConnect) {
-        if (state.busy) {
-            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(tr("Conectando..."))
-        } else {
-            Text(tr("Conectar"))
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Button(onClick = viewModel::connect, enabled = state.canConnect) {
+            if (state.busy) {
+                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(tr("Conectando..."))
+            } else {
+                Text(tr("Conectar"))
+            }
+        }
+        OutlinedButton(onClick = viewModel::importConnection, enabled = !state.busy) {
+            Text(tr("Importar conexão"))
         }
     }
+}
+
+@Composable
+private fun NoticeText(notice: String?) {
+    notice ?: return
+    Spacer(modifier = Modifier.height(8.dp))
+    Text(notice, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+}
+
+/** Pede a senha da congregacao, que cifra (ou abre) o arquivo de conexao. */
+@Composable
+private fun ConnectionPassphraseDialog(prompt: ConnectionPrompt, state: CloudUiState, viewModel: CloudViewModel) {
+    val exportar = prompt == ConnectionPrompt.EXPORTAR
+    AlertDialog(
+        onDismissRequest = viewModel::cancelPrompt,
+        title = { Text(if (exportar) tr("Exportar conexão") else tr("Importar conexão")) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    if (exportar) {
+                        tr(
+                            "O arquivo leva o servidor, o usuário e a senha do banco, cifrados com a " +
+                                "senha da congregação. No outro aparelho, basta abri-lo e digitar a mesma senha.",
+                        )
+                    } else {
+                        tr("Digite a senha da congregação usada para cifrar este arquivo.")
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                OutlinedTextField(
+                    value = state.promptPassphrase,
+                    onValueChange = viewModel::setPromptPassphrase,
+                    label = { Text(tr("Senha da congregação")) },
+                    singleLine = true,
+                    enabled = !state.promptBusy,
+                    isError = state.promptError != null,
+                    supportingText = state.promptError?.let { e -> { Text(e) } },
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { viewModel.confirmPrompt() }),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = viewModel::confirmPrompt,
+                enabled = state.promptPassphrase.isNotEmpty() && !state.promptBusy,
+            ) {
+                Text(if (exportar) tr("Exportar") else tr("Conectar"))
+            }
+        },
+        dismissButton = { TextButton(onClick = viewModel::cancelPrompt) { Text(tr("Cancelar")) } },
+    )
 }
 
 @Composable

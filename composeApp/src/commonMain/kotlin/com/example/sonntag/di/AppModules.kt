@@ -102,7 +102,7 @@ val appModule = module {
     single { PreachingSetupViewModel(get(), get(), get(), get(), get(), get(), get()) }
     single { PreachingCalendarViewModel(get(), get(), get(), get(), get(), get(), get()) }
     single { DataTransferViewModel(get(), get(), get(), get(), get(), get(), get()) }
-    single { CloudViewModel(get(), get(), get(), get()) }
+    single { CloudViewModel(get(), get(), get(), get(), get()) }
     single { DashboardViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get()) }
     single { SettingsViewModel(get(), get(), get(), get()) }
     single { WeekendProgramsViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }

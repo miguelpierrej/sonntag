@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.sonntag.cloud.CloudAutoSync
 import com.example.sonntag.cloud.CloudConfig
+import com.example.sonntag.cloud.CloudConnectionFile
 import com.example.sonntag.cloud.CloudException
 import com.example.sonntag.cloud.CloudFailure
 import com.example.sonntag.cloud.CloudProbe
@@ -13,12 +14,14 @@ import com.example.sonntag.cloud.CloudStatus
 import com.example.sonntag.cloud.CloudSync
 import com.example.sonntag.cloud.CloudSyncResult
 import com.example.sonntag.cloud.ConflictSide
+import com.example.sonntag.cloud.CONNECTION_EXTENSION
 import com.example.sonntag.cloud.deviceLabel
 import com.example.sonntag.sync.RecordDiff
 import com.example.sonntag.sync.SyncDescriber
 import com.example.sonntag.sync.SyncSection
 import com.example.sonntag.sync.SyncStore
 import com.example.sonntag.i18n.LocaleController
+import com.example.sonntag.sync.SyncFileService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -34,8 +37,6 @@ data class CloudUiState(
     val user: String = "",
     val password: String = "",
     val passphrase: String = "",
-    /** A URL colada foi repartida nos campos; o de servidor fica so com o endereco. */
-    val urlSplit: Boolean = false,
     val busy: Boolean = false,
     val error: String? = null,
     /** Resumo da primeira sincronizacao, logo depois de conectar. */
@@ -51,13 +52,29 @@ data class CloudUiState(
     val conflicts: List<ConflictItem>? = null,
     /** Versao escolhida em cada conflito (por id). */
     val conflictChoices: Map<Long, ConflictSide> = emptyMap(),
+    /** Dialogo pedindo a senha da congregacao para o arquivo de conexao; null fechado. */
+    val connectionPrompt: ConnectionPrompt? = null,
+    val promptPassphrase: String = "",
+    val promptBusy: Boolean = false,
+    val promptError: String? = null,
+    /** Aviso de sucesso fora do fluxo de conexao ("Arquivo salvo em ..."). */
+    val notice: String? = null,
 )
  {
+    /** O campo de servidor contem uma URL completa: porta, banco e usuario vem dela. */
+    val url: CloudConfig?
+        get() = CloudConfig.fromUri(host)
+
     val canConnect: Boolean
         get() = !busy && host.isNotBlank() && passphrase.length >= MIN_PASSWORD &&
             // Com a URL no campo, usuario e senha vem dela.
-            (host.contains("://") || (user.isNotBlank() && password.isNotEmpty() && port.toIntOrNull() != null))
+            url.let { u ->
+                if (u != null) u.password.isNotEmpty() || password.isNotEmpty()
+                else user.isNotBlank() && password.isNotEmpty() && port.toIntOrNull() != null
+            }
 }
+
+enum class ConnectionPrompt { EXPORTAR, IMPORTAR }
 
 /** Um conflito pronto para a tela: o registro, os campos que diferem e quem tem cada versao. */
 data class ConflictItem(
@@ -75,6 +92,7 @@ class CloudViewModel(
     private val autoSync: CloudAutoSync,
     private val localeController: LocaleController,
     private val store: SyncStore,
+    private val fileService: SyncFileService,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(CloudUiState())
@@ -82,6 +100,9 @@ class CloudViewModel(
 
     /** Guardado entre conectar e escolher como juntar. */
     private var pending: Pair<CloudConfig, CloudProbe>? = null
+
+    /** Arquivo de conexao escolhido, esperando a senha da congregacao. */
+    private var pendingFile: ByteArray? = null
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
@@ -114,26 +135,20 @@ class CloudViewModel(
     // ─── Formulario ──────────────────────────────────────────────────────────
 
     /**
-     * Colar a URL do provedor preenche todos os campos de uma vez. So quando o texto nao
-     * e continuacao do que ja estava ali: o teclado entrega o que se digita em pedacos
-     * (palavras inteiras, no Gboard), e "…@1" ja parece uma URL completa — desmontar o
-     * campo nessa hora estragava a digitacao. Digitada, a URL e lida ao conectar.
+     * O campo guarda exatamente o que foi colado ou digitado; a URL so e desmontada ao
+     * conectar. Reescrever o campo durante a edicao quebrava no celular: o teclado
+     * entrega o texto em pedacos, apaga e corrige palavras, e "…@a" ja parece URL.
      */
-    fun setHost(value: String) {
-        val anterior = _uiState.value.host
-        val colou = anterior.isEmpty() || !value.startsWith(anterior)
-        _uiState.update { applyUri(it.copy(host = value, error = null, urlSplit = false), onlyIf = colou) }
-    }
+    fun setHost(value: String) = _uiState.update { it.copy(host = value, error = null) }
 
-    private fun applyUri(state: CloudUiState, onlyIf: Boolean = true): CloudUiState {
-        val parsed = CloudConfig.fromUri(state.host).takeIf { onlyIf } ?: return state
+    private fun applyUri(state: CloudUiState): CloudUiState {
+        val parsed = state.url ?: return state
         return state.copy(
             host = parsed.host,
             port = parsed.port.toString(),
             database = parsed.database,
             user = parsed.user.ifEmpty { state.user },
             password = parsed.password.ifEmpty { state.password },
-            urlSplit = true,
         )
     }
 
@@ -181,7 +196,7 @@ class CloudViewModel(
     }
 
     fun syncNow() {
-        _uiState.update { it.copy(summary = null, error = null) }
+        _uiState.update { it.copy(summary = null, error = null, notice = null) }
         autoSync.requestNow()
     }
 
@@ -193,6 +208,103 @@ class CloudViewModel(
             it.copy(active = false, confirmDisconnect = false, password = "", passphrase = "", summary = null)
         }
         viewModelScope.launch(Dispatchers.IO) { cloudSync.disconnect() }
+    }
+
+    // ─── Arquivo de conexao ──────────────────────────────────────────────────
+
+    fun askExportConnection() = _uiState.update {
+        it.copy(connectionPrompt = ConnectionPrompt.EXPORTAR, promptPassphrase = "", promptError = null, notice = null)
+    }
+
+    fun importConnection() {
+        val t = localeController.translator
+        _uiState.update { it.copy(error = null, notice = null) }
+        viewModelScope.launch(Dispatchers.IO) {
+            val bytes = try {
+                fileService.openPackage(t("Abrir conexão da nuvem"), t("Conexão do Sonntag"), CONNECTION_EXTENSION)
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = t("Erro ao abrir o arquivo: {0}", e.message)) }
+                return@launch
+            } ?: return@launch
+            if (!CloudConnectionFile.isConnectionFile(bytes)) {
+                _uiState.update { it.copy(error = t("Este arquivo não é uma conexão da nuvem do Sonntag.")) }
+                return@launch
+            }
+            pendingFile = bytes
+            _uiState.update {
+                it.copy(connectionPrompt = ConnectionPrompt.IMPORTAR, promptPassphrase = "", promptError = null)
+            }
+        }
+    }
+
+    fun setPromptPassphrase(value: String) = _uiState.update { it.copy(promptPassphrase = value, promptError = null) }
+
+    fun cancelPrompt() {
+        pendingFile = null
+        _uiState.update { it.copy(connectionPrompt = null, promptPassphrase = "", promptError = null) }
+    }
+
+    fun confirmPrompt() {
+        val state = _uiState.value
+        val passphrase = state.promptPassphrase
+        if (passphrase.isEmpty() || state.promptBusy) return
+        when (state.connectionPrompt) {
+            ConnectionPrompt.EXPORTAR -> exportConnection(passphrase)
+            ConnectionPrompt.IMPORTAR -> openConnection(passphrase)
+            null -> Unit
+        }
+    }
+
+    private fun exportConnection(passphrase: String) {
+        val t = localeController.translator
+        _uiState.update { it.copy(promptBusy = true, promptError = null) }
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val bytes = cloudSync.connectionFile(passphrase)
+                // Fecha antes do seletor de arquivo, que abre por cima.
+                _uiState.update { it.copy(connectionPrompt = null, promptPassphrase = "", promptBusy = false) }
+                val salvo = fileService.savePackage(
+                    defaultName = "conexao-nuvem.$CONNECTION_EXTENSION",
+                    dialogTitle = t("Salvar conexão da nuvem"),
+                    filterLabel = t("Conexão do Sonntag"),
+                    bytes = bytes,
+                    extension = CONNECTION_EXTENSION,
+                )
+                _uiState.update { it.copy(notice = salvo?.let { c -> t("Conexão salva em {0}", c) }) }
+            } catch (e: CloudException) {
+                _uiState.update { it.copy(promptBusy = false, promptError = failureMessage(e)) }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(connectionPrompt = null, promptBusy = false, error = t("Erro ao exportar: {0}", e.message))
+                }
+            }
+        }
+    }
+
+    /** Preenche o formulario com o arquivo e conecta de uma vez: e o que quem importa quer. */
+    private fun openConnection(passphrase: String) {
+        val bytes = pendingFile ?: return
+        val config = cloudSync.readConnectionFile(bytes, passphrase)
+        if (config == null) {
+            _uiState.update {
+                it.copy(promptError = localeController.translator("A senha não abre este arquivo."))
+            }
+            return
+        }
+        pendingFile = null
+        _uiState.update {
+            it.copy(
+                connectionPrompt = null,
+                promptPassphrase = "",
+                host = config.host,
+                port = config.port.toString(),
+                database = config.database,
+                user = config.user,
+                password = config.password,
+                passphrase = passphrase,
+            )
+        }
+        connect()
     }
 
     // ─── Conflitos ───────────────────────────────────────────────────────────

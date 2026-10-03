@@ -50,6 +50,8 @@ private const val PREF_BANCO = "nuvem_banco"
 private const val PREF_USUARIO = "nuvem_usuario"
 private const val PREF_SENHA = "nuvem_senha"
 private const val PREF_CHAVE = "nuvem_chave"
+/** Sal da nuvem conectada; confere a senha da congregacao sem ir ao servidor. */
+private const val PREF_SAL = "nuvem_sal"
 private const val PREF_ID = "nuvem_id"
 private const val PREF_CURSOR = "nuvem_cursor"
 private const val PREF_ENVIO = "nuvem_envio"
@@ -103,6 +105,7 @@ private val json = Json
 class CloudProbe(
     val cloudId: String,
     val key: ByteArray,
+    val salt: String,
     val cloudHasData: Boolean,
     val localHasData: Boolean,
 )
@@ -373,6 +376,7 @@ class CloudSync(
             CloudProbe(
                 cloudId = meta.getValue(META_ID),
                 key = key,
+                salt = meta.getValue(META_SAL),
                 cloudHasData = session.countRows() > 0,
                 localHasData = TABELAS_COM_DADOS.any { store.countAlive(it) > 0 },
             )
@@ -397,12 +401,38 @@ class CloudSync(
         prefs.set(PREF_USUARIO, config.user)
         setSecret(PREF_SENHA, config.password)
         setSecret(PREF_CHAVE, base64Encode(probe.key))
+        prefs.set(PREF_SAL, probe.salt)
         prefs.set(PREF_ID, probe.cloudId)
         val result = sync(replace = mode == CloudStartMode.USAR_NUVEM, collectLocal = true)
         prefs.set(PREF_ATIVA, "1")
         _active.value = true
         return result
     }
+
+    /**
+     * Arquivo com a conexao atual, cifrado com a senha da congregacao. A senha e
+     * conferida antes: um arquivo cifrado com outra deixaria o outro aparelho preso
+     * num erro de senha que ninguem entenderia.
+     */
+    suspend fun connectionFile(passphrase: String): ByteArray {
+        val config = savedConfig()?.takeIf { it.password.isNotEmpty() }
+            ?: throw CloudException(CloudFailure.NAO_CONFIGURADA)
+        val chave = secret(PREF_CHAVE)?.let(::base64Decode)
+            ?: throw CloudException(CloudFailure.NAO_CONFIGURADA)
+        // Conexoes feitas antes de o sal ser guardado: busca uma vez no servidor.
+        val sal = prefs.get(PREF_SAL)?.takeIf { it.isNotEmpty() }
+            ?: mutex.withLock { openCloudSession(config).use { it.meta() } }[META_SAL]
+                ?.also { prefs.set(PREF_SAL, it) }
+            ?: throw CloudException(CloudFailure.NUVEM_TROCADA)
+        if (!crypto.deriveKey(passphrase, base64Decode(sal)).contentEquals(chave)) {
+            throw CloudException(CloudFailure.SENHA_CONGREGACAO)
+        }
+        return CloudConnectionFile.encode(config, passphrase, crypto)
+    }
+
+    /** Null se a senha nao abre o arquivo; [IllegalArgumentException] se nao e um arquivo de conexao. */
+    fun readConnectionFile(bytes: ByteArray, passphrase: String): CloudConfig? =
+        CloudConnectionFile.decode(bytes, passphrase, crypto)
 
     /**
      * Para de sincronizar e esquece as senhas. Os dados locais ficam; o servidor, o
