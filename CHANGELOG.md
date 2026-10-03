@@ -8,7 +8,7 @@ versionamento segue o [Semantic Versioning](https://semver.org/lang/pt-BR/).
 O workflow de release lê a seção da versão que está sendo fechada e usa o conteúdo
 como corpo do GitHub Release — o cabeçalho precisa ser `## [x.y.z] - AAAA-MM-DD`.
 
-## [1.2.0] - Unreleased
+## [1.2.0] - 2026-10-03
 
 ### Adicionado
 - Exportar e importar a conexão da nuvem por arquivo (`.sonntagnuvem`). Com a nuvem
